@@ -84,11 +84,14 @@ orion-x/
 │   │   │   ├── DashboardController.php    ─ Dashboard (una acción: index)
 │   │   │   ├── PortalController.php       ─ Mi Espacio (permisos/vacaciones propias)
 │   │   │   ├── ProfileController.php      ─ Perfil de usuario (simplificado, sin catálogos)
+│   │   │   ├── SolicitudesController.php  ─ Bandeja de Solicitudes (aceptar/rechazar)
 │   │   │   └── Rrhh/
 │   │   │       └── RrhhUserController.php ─ RRHH: CRUD usuarios + OTT + permisos + vacaciones
 │   │   └── Requests/
 │   │       ├── Auth/LoginRequest.php
 │   │       ├── ProfileUpdateRequest.php
+│   │       ├── Ott/
+│   │       │   └── StoreOttRequest.php   ─ Validación crear OTT
 │   │       ├── Rrhh/
 │   │       │   ├── StoreUserRequest.php   ─ RRHH: validación crear usuario
 │   │       │   └── UpdateUserRequest.php  ─ RRHH: validación editar usuario
@@ -113,7 +116,15 @@ orion-x/
 │   │   ├── EstadoVacacione.php           ─ Estados vacaciones (4)
 │   │   ├── Vacacione.php                 ─ Vacaciones (solicitud única)
 │   │   ├── VacacionPeriodo.php           ─ Desglose por período de cada solicitud
-│   │   └── PermisoSistema.php            ─ Permisos del sistema (rrhh, etc.)
+│   │   └── PermisoSistema.php            ─ Permisos del sistema (rrhh, solicitudes, etc.)
+│   ├── Notifications/
+│   │   ├── PermisoCreada.php            ─ Notif. al crear permiso
+│   │   ├── PermisoAceptada.php          ─ Notif. al aceptar permiso
+│   │   ├── PermisoRechazada.php         ─ Notif. al rechazar permiso
+│   │   ├── VacacionCreada.php           ─ Notif. al crear vacaciones
+│   │   ├── VacacionAceptada.php         ─ Notif. al aceptar vacaciones
+│   │   ├── VacacionRechazada.php        ─ Notif. al rechazar vacaciones
+│   │   └── VacacionAnulada.php          ─ Notif. al anular vacaciones
 │   └── Providers/
 │       ├── AppServiceProvider.php
 │       ├── RepositoryServiceProvider.php
@@ -160,7 +171,7 @@ orion-x/
 │       ├── PrevisionSeeder.php
 │       ├── AfpSeeder.php
 │       ├── EstadoSeeder.php
-│       ├── PermisoSistemaSeeder.php        ─ 1 permiso (rrhh) (firstOrCreate)
+│       ├── PermisoSistemaSeeder.php        ─ 2 permisos (rrhh, solicitudes) (firstOrCreate)
 │       ├── TipoPermisoSeeder.php         ─ 7 tipos (firstOrCreate)
 │       ├── EstadoPermisoSeeder.php       ─ 3 estados (firstOrCreate)
 │       └── EstadoVacacionSeeder.php      ─ 4 estados (firstOrCreate)
@@ -190,7 +201,9 @@ orion-x/
 │   │   │   ├── Portal/Index.tsx          ─ Mi Espacio (3 tabs: Permisos, Vacaciones, Órdenes)
 │   │   │   ├── Profile/                 ─ Perfil con foto + partials (shadcn/ui + AppLayout)
 │   │   │   │   └── Partials/            ─ 2 partials (información + contraseña)
-│   │   │   └── Rrhh/                    ─ RRHH: Index, Create, Edit (7 tabs)
+│   │   │   ├── Rrhh/                    ─ RRHH: Index, Create, Edit (7 tabs)
+│   │   │   └── Solicitudes/             ─ Bandeja de Solicitudes
+│   │   │       └── Index.tsx            ─ 2 cards (Permisos/Vacaciones pendientes)
 │   │   ├── stores/
 │   │   │   └── sidebarStore.ts          ─ Estado del sidebar (colapsado)
 │   │   └── types/
@@ -202,7 +215,7 @@ orion-x/
 ├── routes/
 │   ├── auth.php                         ─ Rutas de autenticación (Breeze)
 │   ├── console.php
-│   └── web.php                          ─ Dashboard + perfil + RRHH + Portal
+│   └── web.php                          ─ Dashboard + perfil + RRHH + Portal + Solicitudes
 ├── storage/
 │   └── app/public/avatars/              ─ Fotos de perfil subidas
 ├── .env
@@ -266,7 +279,14 @@ orion-x/
 | `SESSION_LIFETIME` | 120 | Minutos de sesión |
 | `QUEUE_CONNECTION` | sync | Driver de cola (dev) |
 | `CACHE_STORE` | file | Driver de caché (dev) |
-| `MAIL_MAILER` | log | Driver de mail (dev) |
+| `MAIL_MAILER` | smtp | Driver de mail (Gmail SMTP) |
+| `MAIL_HOST` | smtp.gmail.com | Host SMTP |
+| `MAIL_PORT` | 587 | Puerto SMTP |
+| `MAIL_USERNAME` | l2.irux@gmail.com | Cuenta Gmail |
+| `MAIL_PASSWORD` | (contraseña de aplicación) | App password Gmail |
+| `MAIL_ENCRYPTION` | tls | Encriptación |
+| `MAIL_FROM_ADDRESS` | l2.irux@gmail.com | Remitente |
+| `MAIL_FROM_NAME` | "${APP_NAME}" | Nombre remitente |
 | `FILESYSTEM_DISK` | local | Disco de archivos |
 
 Para **producción Linux**: cambiar `DB_CONNECTION=pgsql`, `QUEUE_CONNECTION=redis`, `CACHE_STORE=redis`, `SESSION_DRIVER=redis`.
@@ -349,21 +369,25 @@ php artisan test         # Pest tests
 - Tabla `permisos_sistema` con columnas: id, nombre, slug, descripcion
 - Pivot `user_permiso_sistema` (user_id, permiso_id)
 - Modelo `PermisoSistema` con relación `users()` belongsToMany
-- Seeder: `PermisoSistemaSeeder` crea permiso `rrhh` (firstOrCreate)
+- Seeder: `PermisoSistemaSeeder` crea permisos `rrhh` y `solicitudes` (firstOrCreate)
 - Se comparten globalmente vía `HandleInertiaRequests.php`:
   ```php
   'permisos' => $request->user()?->permisosSistema?->pluck('slug') ?? [],
   ```
 - `PageProps` en `types/index.ts` incluye `permisos: string[]`
-- `AppLayout.tsx` filtra el nav item RRHH: `if (item.label === 'RRHH') return permisos.includes('rrhh')`
+- `AppLayout.tsx` muestra items condicionales según permisos:
+  - `Mi Espacio` (siempre visible)
+  - `Solicitudes` si `permisos.includes('solicitudes')`
+  - `RRHH` si `permisos.includes('rrhh')`
+  - Sin headers de sección (solo links cliqueables)
 - `Rrhh/Edit.tsx` tab Sistema: switches toggle para asignar/remover permisos al usuario, con ruta `PATCH /rrhh/{user}/permisos-sistema`
 
 ### Confirmaciones con sweetalert2 (legacy) / ConfirmDialog + ToastProvider
-- sweetalert2 instalado pero **solo se usa en páginas legacy** (Auth, Profile, Create)
-- En `Edit.tsx` (RRHH) sweetalert2 fue **reemplazado completamente** por:
+- sweetalert2 instalado pero **solo se usa en páginas legacy** (Auth, Profile, Create, Rrhh/Create)
+- En `Rrhh/Edit.tsx` y `Solicitudes/Index.tsx` sweetalert2 fue **reemplazado completamente** por:
   - `ConfirmDialog`: componente sin portal (z-[200]) para evitar conflictos con overlays de Radix Dialog
   - `ToastProvider` + `ui/toast`: notificaciones de éxito no obstructivas
-- Acciones que usan ConfirmDialog: guardar perfil, crear/eliminar OTT, crear/eliminar/aceptar permiso, crear/eliminar/aceptar vacación, registrar histórico
+- Acciones que usan ConfirmDialog: guardar perfil, crear/eliminar OTT, crear/eliminar/aceptar permiso, crear/eliminar/aceptar vacación, registrar histórico, aceptar/rechazar solicitudes
 
 ### Módulo RRHH
 - Ruta: `/rrhh` (name: `rrhh.index`), `/rrhh/create` (`rrhh.create`), `POST /rrhh` (`rrhh.store`)
@@ -417,3 +441,29 @@ php artisan test         # Pest tests
 - Prod: Redis via `predis/predis` + `laravel/horizon`
 - `QUEUE_CONNECTION=sync` en dev no requiere worker
 - `CACHE_STORE=file` en dev usa sistema de archivos
+
+### Notificaciones por Email
+- 7 clases de notificación en `app/Notifications/`:
+  - `PermisoCreada` — al empleado cuando se crea un permiso
+  - `PermisoAceptada` — al empleado cuando se acepta un permiso
+  - `PermisoRechazada` — al empleado cuando se rechaza un permiso (incluye motivo)
+  - `VacacionCreada` — al empleado cuando se crea una solicitud de vacaciones
+  - `VacacionAceptada` — al empleado cuando se aceptan las vacaciones
+  - `VacacionRechazada` — al empleado cuando se rechazan las vacaciones (incluye motivo)
+  - `VacacionAnulada` — al empleado cuando se anulan las vacaciones (incluye motivo)
+- Configuradas con **Gmail SMTP** (contraseña de aplicación)
+- Implementan `ShouldQueue`; con `QUEUE_CONNECTION=sync` se envían inline
+- **Solo al empleado afectado** (nunca a administradores)
+- El registro histórico de vacaciones **no** envía notificación
+- Formato del mensaje: salutation sin `<br>`, incluye `**Solicitud:** #PERM-{id}` / `**Solicitud:** #VAC-{id}`, `**Motivo:**`, `**Gestionado el:** {fecha}`
+
+### Bandeja de Solicitudes
+- Ruta: `/solicitudes` (name: `solicitudes.index`)
+- Controlador: `SolicitudesController` independiente de RRHH, reutiliza lógica similar pero redirige a `solicitudes.index`
+- Frontend: `Solicitudes/Index.tsx` con 2 cards separadas (Permisos Pendientes + Vacaciones Pendientes)
+- Muestra **solo solicitudes en estado Ingresada**
+- Acciones disponibles: Aceptar (ConfirmDialog) / Rechazar (Dialog con textarea, min 5 caracteres)
+- Notificaciones email al empleado afectado al aceptar o rechazar
+- Requiere permiso `solicitudes` para acceder (compartido vía `HandleInertiaRequests.php`)
+- Layout usa patrón `.layout = (page) => <AppLayout ...>` (mismo que RRHH Edit)
+- Columnas en tabla: Funcionario (en lugar de Empleado)

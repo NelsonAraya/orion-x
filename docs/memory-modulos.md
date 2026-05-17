@@ -13,7 +13,10 @@
 - [Módulo: Autenticación](#módulo-autenticación)
 - [Módulo: Dashboard](#módulo-dashboard)
 - [Módulo: Perfil](#módulo-perfil)
+- [Módulo: Portal de Autoservicio (Mi Espacio)](#módulo-portal-de-autoservicio-mi-espacio)
 - [Módulo: RRHH](#módulo-rrhh)
+- [Módulo: Bandeja de Solicitudes](#módulo-bandeja-de-solicitudes)
+- [Módulo: Notificaciones por Email](#módulo-notificaciones-por-email)
 
 ---
 
@@ -231,7 +234,7 @@ Gestión de usuarios del sistema desde el panel de RRHH. Permite listar todos lo
 | PATCH | `/rrhh/vacaciones/{vacacion}/aceptar` | `aceptarVacacion` | `rrhh.vacaciones.aceptar` |
 | PATCH | `/rrhh/vacaciones/{vacacion}/rechazar` | `rechazarVacacion` | `rrhh.vacaciones.rechazar` |
 | PATCH | `/rrhh/vacaciones/{vacacion}/anular` | `anularVacacion` | `rrhh.vacaciones.anular` |
-| PATCH | `/rrhh/{user}/permisos-sistema` | `storePermisosSistema` | — (name `rrhh.permisos-sistema`)
+| PATCH | `/rrhh/{user}/permisos-sistema` | `storePermisosSistema` | `rrhh.permisos-sistema`
 
 ### Funcionalidades implementadas
 - [x] Listar usuarios paginados (10 por página)
@@ -267,8 +270,110 @@ Gestión de usuarios del sistema desde el panel de RRHH. Permite listar todos lo
 - [x] Validación de login: solo usuarios con estado Activo pueden iniciar sesión
 - [x] Bug fix: colisión clave `permisos` entre shared prop (string[] slugs) y page prop (array objetos) → renombrada a `lista_permisos` en RrhhUserController::edit() y Edit.tsx
 - [x] StoreVacacionRequest compatible con Portal: fallback `auth()->id()` cuando no existe `{user}` en la ruta
+- [x] Notificaciones email al empleado al crear/aceptar/rechazar/anular permisos y vacaciones
+- [x] Registro histórico de vacaciones no envía notificación email
 
 ### Diseño UI
 - **Index**: Card con tabla, buscador con icono, paginación con botones numerados, badge de estado con variantes de color, filas clickeables
 - **Create**: 2 Cards seccionados (Datos Personales con icono User azul, Info. Laboral con icono Briefcase teal), hint box ámbar para regla de contraseña, inputs con iconos decorativos, textarea para dirección
 - **Edit**: Misma estructura que Create, RUT disabled con opacidad, Estado como select, sin campo password. 7 tabs (Datos, Laboral, OTT, Permisos, Vacaciones, Mérito, Sistema). Tabs responsive con flex-wrap (3 por fila) en mobile, h-auto min-h-9, icons shrink-0, texto abreviado (Datos, Laboral, Órdenes, Permisos, Vac., Mérito, Sistema). Tab Mérito: card vacío. Tab Sistema: switches toggle por permiso.
+
+---
+
+## Módulo: Bandeja de Solicitudes
+
+### Descripción
+Bandeja centralizada para gestionar solicitudes pendientes de permisos y vacaciones. Muestra solo solicitudes en estado Ingresada, con dos cards separadas (Permisos y Vacaciones). Permite aceptar o rechazar cada solicitud con ConfirmDialog + textarea para el motivo de rechazo. Requiere permiso `solicitudes`.
+
+### Archivos involucrados
+
+**Backend:**
+- `app/Http/Controllers/SolicitudesController.php` — index, aceptarPermiso, rechazarPermiso, aceptarVacacion, rechazarVacacion
+- `app/Models/Permiso.php` — Relaciones userAsignado, tipoPermiso, estadoPermiso, detalles
+- `app/Models/Vacacione.php` — Relaciones user, estadoVacacione, periodos
+- `app/Models/EstadoPermiso.php` — Catálogo estados (Ingresada, Aceptada, Rechazada)
+- `app/Models/EstadoVacacione.php` — Catálogo estados (Ingresada, Aceptada, Rechazada, Anulada)
+- `app/Notifications/PermisoAceptada.php`, `PermisoRechazada.php`, `VacacionAceptada.php`, `VacacionRechazada.php`
+- `app/Http/Middleware/HandleInertiaRequests.php` — Comparte `permisos` globalmente
+- `routes/web.php` — 5 rutas solicitudes
+
+**Frontend:**
+- `resources/js/Pages/Solicitudes/Index.tsx` — 2 cards (Permisos/Vacaciones) con botones Aceptar/Rechazar
+- `resources/js/Components/ConfirmDialog.tsx` — Confirmación antes de aceptar
+- `resources/js/Components/ToastProvider.tsx` — Toast de notificaciones de éxito
+
+### Rutas
+
+| Método | URI | Controller@método | Name |
+|--------|-----|-------------------|------|
+| GET | `/solicitudes` | `index` | `solicitudes.index` |
+| PATCH | `/solicitudes/permisos/{permiso}/aceptar` | `aceptarPermiso` | `solicitudes.permisos.aceptar` |
+| PATCH | `/solicitudes/permisos/{permiso}/rechazar` | `rechazarPermiso` | `solicitudes.permisos.rechazar` |
+| PATCH | `/solicitudes/vacaciones/{vacacion}/aceptar` | `aceptarVacacion` | `solicitudes.vacaciones.aceptar` |
+| PATCH | `/solicitudes/vacaciones/{vacacion}/rechazar` | `rechazarVacacion` | `solicitudes.vacaciones.rechazar` |
+
+### Funcionalidades implementadas
+- [x] Listar permisos pendientes (Ingresada) con datos: solicitud, funcionario, tipo, detalle, motivo
+- [x] Listar vacaciones pendientes (Ingresada) con datos: solicitud, funcionario, fechas, días, motivo
+- [x] Aceptar permiso con ConfirmDialog + notificación email al empleado
+- [x] Rechazar permiso con Dialog + textarea (min 5 caracteres) + notificación email al empleado
+- [x] Aceptar vacaciones con ConfirmDialog + notificación email al empleado
+- [x] Rechazar vacaciones con Dialog + textarea (min 5 caracteres) + notificación email al empleado
+- [x] Validación: solo se pueden gestionar solicitudes en estado Ingresada
+- [x] Redirección a `solicitudes.index` después de cada acción
+
+### Diseño UI
+- Cards separadas (Permisos Pendientes / Vacaciones Pendientes) con iconos distintivos (CheckCircle azul, Calendar teal)
+- Tablas con columnas: Solicitud, Funcionario, Tipo/Fechas, Detalle/Días, Motivo, Acción
+- Botones Aceptar (verde) y Rechazar (rojo) con iconos
+- ConfirmDialog para Aceptar, Dialog con textarea para Rechazar
+- Estado vacío: icono + mensaje "No hay X pendientes"
+- Sin paginación (solo pendientes, volumen bajo)
+
+---
+
+## Módulo: Notificaciones por Email
+
+### Descripción
+Sistema de notificaciones por email que informa al empleado sobre el estado de sus solicitudes de permisos y vacaciones. Las notificaciones se envían solo al empleado afectado (no a administradores). Configurado con Gmail SMTP.
+
+### Archivos involucrados
+
+**Backend:**
+- `app/Notifications/PermisoCreada.php` — Al crear permiso
+- `app/Notifications/PermisoAceptada.php` — Al aceptar permiso
+- `app/Notifications/PermisoRechazada.php` — Al rechazar permiso (incluye observación)
+- `app/Notifications/VacacionCreada.php` — Al crear solicitud de vacaciones
+- `app/Notifications/VacacionAceptada.php` — Al aceptar vacaciones
+- `app/Notifications/VacacionRechazada.php` — Al rechazar vacaciones (incluye observación)
+- `app/Notifications/VacacionAnulada.php` — Al anular vacaciones (incluye observación)
+- `config/mail.php` — Configuración SMTP
+- `.env` — Credenciales Gmail
+
+### Canales
+- **Email** (MailMessage via Laravel Notifications)
+- Configurado con **Gmail SMTP** (contraseña de aplicación)
+- `MAIL_MAILER=smtp`, `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=587`, `MAIL_ENCRYPTION=tls`
+
+### Funcionalidades implementadas
+- [x] Notificar al empleado cuando se crea un permiso (Portal o RRHH)
+- [x] Notificar al empleado cuando se acepta un permiso (RRHH o Solicitudes)
+- [x] Notificar al empleado cuando se rechaza un permiso, incluyendo motivo (RRHH o Solicitudes)
+- [x] Notificar al empleado cuando se crea una solicitud de vacaciones (Portal o RRHH)
+- [x] Notificar al empleado cuando se aceptan las vacaciones (RRHH o Solicitudes)
+- [x] Notificar al empleado cuando se rechazan las vacaciones, incluyendo motivo (RRHH o Solicitudes)
+- [x] Notificar al empleado cuando se anulan las vacaciones, incluyendo motivo (RRHH)
+- [x] Notificaciones implementan `ShouldQueue` para envío asíncrono
+- [x] Con `QUEUE_CONNECTION=sync` se envían inline (dev)
+- [x] Solo al empleado afectado (nunca a administradores)
+- [x] Registro histórico de vacaciones no envía notificación
+
+### Formato del mensaje
+- **Subject:** "ORION-X — [Acción]: [Tipo]" (ej: "ORION-X — Permiso Creado: Permiso por Enfermedad")
+- **Salutation:** "Estimado(a) [Nombre],"
+- **Cuerpo:** Descripción de la acción + detalles relevantes
+- **Líneas informativas:**
+  - `**Solicitud:** #PERM-{id}` o `**Solicitud:** #VAC-{id}`
+  - `**Motivo:** {motivo}` (cuando aplica)
+  - `**Gestionado el:** {fecha}`
+- **Firma:** "— ORION-X" (sin `<br>`, línea plana)
