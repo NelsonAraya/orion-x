@@ -20,6 +20,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/{user}', [RrhhUserController::class, 'update'])->name('update');
         Route::post('/{user}/ordenes', [RrhhUserController::class, 'storeOtt'])->name('ordenes.store');
         Route::delete('/ordenes/{orden}', [RrhhUserController::class, 'destroyOtt'])->name('ordenes.destroy');
+        Route::post('/ordenes/{orden}/archivos', [RrhhUserController::class, 'storeOttFile'])->name('ordenes.archivos.store');
+        Route::delete('/ordenes/archivos/{archivo}', [RrhhUserController::class, 'destroyOttFile'])->name('ordenes.archivos.destroy');
+        Route::get('/ordenes/archivos/{archivo}/descargar', [RrhhUserController::class, 'downloadOttFile'])->name('ordenes.archivos.download');
         Route::post('/{user}/permisos', [RrhhUserController::class, 'storePermiso'])->name('permisos.store');
         Route::delete('/permisos/{permiso}', [RrhhUserController::class, 'destroyPermiso'])->name('permisos.destroy');
         Route::patch('/permisos/{permiso}/aceptar', [RrhhUserController::class, 'aceptarPermiso'])->name('permisos.aceptar');

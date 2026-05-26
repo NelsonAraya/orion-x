@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class OrdenTrabajo extends Model
 {
@@ -23,6 +25,16 @@ class OrdenTrabajo extends Model
         'nivel',
         'estado_ott_id',
     ];
+
+    protected static function booted(): void
+    {
+        static::deleting(function (OrdenTrabajo $orden) {
+            foreach ($orden->files as $file) {
+                Storage::disk('s3')->delete($file->nombre_archivo);
+                $file->delete();
+            }
+        });
+    }
 
     protected function casts(): array
     {
@@ -75,5 +87,10 @@ class OrdenTrabajo extends Model
     public function userCreador(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id_creador');
+    }
+
+    public function files(): HasMany
+    {
+        return $this->hasMany(OttFile::class, 'orden_trabajo_id');
     }
 }

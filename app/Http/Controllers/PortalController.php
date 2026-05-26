@@ -104,7 +104,7 @@ class PortalController extends Controller
 
         $ordenes = OrdenTrabajo::with([
             'tipoOrden', 'tipoContrato', 'centroCosto', 'estadoOtt',
-            'afp', 'prevision', 'userCreador',
+            'afp', 'prevision', 'userCreador', 'files',
         ])
             ->where('user_id_asignado', $userId)
             ->orderBy('created_at', 'desc')
@@ -124,6 +124,14 @@ class PortalController extends Controller
                 'estado' => $o->estadoOtt?->nombre,
                 'creado_por' => $o->userCreador?->name,
                 'created_at' => $o->created_at->format('d/m/Y H:i'),
+                'files' => $o->files->map(fn ($f) => [
+                    'id' => $f->id,
+                    'nombre_original' => $f->nombre_original,
+                    'mime_type' => $f->mime_type,
+                    'tamano' => $f->tamano_formateado,
+                    'creado_por' => $f->userCreador?->name,
+                    'created_at' => $f->created_at->format('d/m/Y H:i'),
+                ]),
             ]);
 
         return Inertia::render('Portal/Index', [

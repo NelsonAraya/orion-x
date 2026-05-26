@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Rrhh;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Ott\StoreOttFileRequest;
 use App\Http\Requests\Ott\StoreOttRequest;
 use App\Http\Requests\Permiso\StorePermisoRequest;
 use App\Http\Requests\Rrhh\StoreUserRequest;
@@ -18,6 +19,7 @@ use App\Models\EstadoOtt;
 use App\Models\EstadoPermiso;
 use App\Models\Nacionalidad;
 use App\Models\OrdenTrabajo;
+use App\Models\OttFile;
 use App\Models\Permiso;
 use App\Models\PermisoDetalle;
 use App\Models\Prevision;
@@ -37,6 +39,7 @@ use App\Notifications\VacacionCreada;
 use App\Notifications\VacacionRechazada;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -132,7 +135,7 @@ class RrhhUserController extends Controller
 
         $ordenes = OrdenTrabajo::with([
             'tipoOrden', 'tipoContrato', 'centroCosto', 'estadoOtt',
-            'afp', 'prevision', 'userCreador',
+            'afp', 'prevision', 'userCreador', 'files.userCreador',
         ])
             ->where('user_id_asignado', $id)
             ->orderBy('created_at', 'desc')
@@ -152,6 +155,14 @@ class RrhhUserController extends Controller
                 'estado' => $o->estadoOtt?->nombre,
                 'creado_por' => $o->userCreador?->name,
                 'created_at' => $o->created_at->format('d/m/Y H:i'),
+                'files' => $o->files->map(fn ($f) => [
+                    'id' => $f->id,
+                    'nombre_original' => $f->nombre_original,
+                    'mime_type' => $f->mime_type,
+                    'tamano' => $f->tamano_formateado,
+                    'creado_por' => $f->userCreador?->name,
+                    'created_at' => $f->created_at->format('d/m/Y H:i'),
+                ]),
             ]);
 
         $permisos = Permiso::with([
@@ -592,6 +603,49 @@ class RrhhUserController extends Controller
 
         return redirect()->route('rrhh.edit', $userId)
             ->with('success', 'Solicitud de vacaciones eliminada correctamente.');
+    }
+
+    public function storeOttFile(int $ordenId, StoreOttFileRequest $request): RedirectResponse
+    {
+        $orden = OrdenTrabajo::findOrFail($ordenId);
+
+        $file = $request->file('archivo');
+        $extension = $file->getClientOriginalExtension();
+        $nombreOriginal = $file->getClientOriginalName();
+        $uuid = (string) \Illuminate\Support\Str::uuid();
+
+        $nombreArchivo = "{$uuid}.{$extension}";
+        $path = $file->storeAs("ott-files/{$ordenId}", $nombreArchivo, 's3');
+
+        $orden->files()->create([
+            'user_id_creador' => auth()->id(),
+            'nombre_original' => $nombreOriginal,
+            'nombre_archivo' => $path,
+            'mime_type' => $file->getClientMimeType(),
+            'tamano' => $file->getSize(),
+        ]);
+
+        return redirect()->route('rrhh.edit', $orden->user_id_asignado)
+            ->with('success', 'Archivo subido correctamente.');
+    }
+
+    public function destroyOttFile(int $fileId): RedirectResponse
+    {
+        $file = OttFile::findOrFail($fileId);
+        $userId = $file->ordenTrabajo->user_id_asignado;
+
+        Storage::disk('s3')->delete($file->nombre_archivo);
+        $file->delete();
+
+        return redirect()->route('rrhh.edit', $userId)
+            ->with('success', 'Archivo eliminado correctamente.');
+    }
+
+    public function downloadOttFile(int $fileId)
+    {
+        $file = OttFile::findOrFail($fileId);
+
+        return Storage::disk('s3')->download($file->nombre_archivo, $file->nombre_original);
     }
 
     public function storePermisosSistema(int $userId, Request $request): RedirectResponse

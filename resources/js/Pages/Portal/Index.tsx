@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/Components/ui/table'
 import { Badge } from '@/Components/ui/badge'
-import { ClipboardList, Calendar, Briefcase, Plus, FileText } from 'lucide-react'
+import { ClipboardList, Calendar, Briefcase, Plus, FileText, Paperclip, Download } from 'lucide-react'
 
 interface TipoPermiso {
   id: number
@@ -73,6 +73,15 @@ interface Periodo {
   dias_usados: number
 }
 
+interface OttFile {
+  id: number
+  nombre_original: string
+  mime_type: string
+  tamano: string
+  creado_por: string | null
+  created_at: string
+}
+
 interface Orden {
   id: number
   ott_display: string
@@ -86,6 +95,7 @@ interface Orden {
   afp: string | null
   prevision: string | null
   estado: string
+  files: OttFile[]
   creado_por: string
   created_at: string
 }
@@ -184,6 +194,8 @@ export default function PortalIndex({ lista_permisos, tipos_permiso, con_goce_id
     }
     return { total: count, distribucion: preview, faltante: remaining }
   })()
+
+  const [archivosOttModal, setArchivosOttModal] = useState<{ open: boolean; files: OttFile[]; ottDisplay: string }>({ open: false, files: [], ottDisplay: '' })
 
   return (
     <AppLayout title="Mi Espacio">
@@ -488,6 +500,7 @@ export default function PortalIndex({ lista_permisos, tipos_permiso, con_goce_id
                           <TableHead>AFP</TableHead>
                           <TableHead>Previsión</TableHead>
                           <TableHead>Estado</TableHead>
+                          <TableHead>Archivos</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -504,6 +517,19 @@ export default function PortalIndex({ lista_permisos, tipos_permiso, con_goce_id
                             <TableCell>{o.afp ?? '—'}</TableCell>
                             <TableCell>{o.prevision ?? '—'}</TableCell>
                             <TableCell>{estadoBadge(o.estado)}</TableCell>
+                            <TableCell>
+                              {o.files.length > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="gap-1 text-muted-foreground hover:text-foreground"
+                                  onClick={() => setArchivosOttModal({ open: true, files: o.files, ottDisplay: o.ott_display })}
+                                >
+                                  <Paperclip className="h-4 w-4" />
+                                  {o.files.length}
+                                </Button>
+                              )}
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -514,6 +540,47 @@ export default function PortalIndex({ lista_permisos, tipos_permiso, con_goce_id
             </Card>
           </TabsContent>
         </Tabs>
+
+        <Dialog open={archivosOttModal.open} onOpenChange={(open) => setArchivosOttModal({ ...archivosOttModal, open })}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Archivos — {archivosOttModal.ottDisplay}</DialogTitle>
+              <DialogDescription>
+                {archivosOttModal.files.length} archivo(s) adjunto(s).
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-2 max-h-72 overflow-y-auto">
+              {archivosOttModal.files.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Paperclip className="h-10 w-10 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">No hay archivos adjuntos.</p>
+                </div>
+              ) : (
+                archivosOttModal.files.map((f) => (
+                  <div key={f.id} className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <FileText className="h-8 w-8 shrink-0 text-primary/60" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{f.nombre_original}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {f.tamano} &middot; {f.created_at}
+                          {f.creado_por ? <> &middot; por {f.creado_por}</> : null}
+                        </p>
+                      </div>
+                    </div>
+                    <a
+                      href={route('rrhh.ordenes.archivos.download', f.id)}
+                      download
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent shrink-0 transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
+                    </a>
+                  </div>
+                ))
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={permisoModalOpen} onOpenChange={setPermisoModalOpen}>
           <DialogContent className="sm:max-w-lg">

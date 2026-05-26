@@ -25,6 +25,7 @@
 | `predis/predis` | v3.4.2 | Cliente Redis para queue/cache |
 | `laravel/horizon` | v5.46.0 | Dashboard de colas Redis |
 | `laravel/sanctum` | v4.3.2 | API tokens / SPA auth |
+| `league/flysystem-aws-s3-v3` | ^3.34.0 | Driver S3 para almacenamiento de archivos |
 | `tightenco/ziggy` | v2.6.2 | Helper `route()` en JS |
 | `laravel/tinker` | v3.0.2 | REPL interactivo |
 | `laravel/breeze` (dev) | v2.4.1 | Scaffolding auth inicial |
@@ -91,7 +92,8 @@ orion-x/
 │   │       ├── Auth/LoginRequest.php
 │   │       ├── ProfileUpdateRequest.php
 │   │       ├── Ott/
-│   │       │   └── StoreOttRequest.php   ─ Validación crear OTT
+│   │   │   ├── StoreOttRequest.php       ─ Validación crear OTT
+│   │   │   └── StoreOttFileRequest.php   ─ Validación subir PDF a OTT
 │   │       ├── Rrhh/
 │   │       │   ├── StoreUserRequest.php   ─ RRHH: validación crear usuario
 │   │       │   └── UpdateUserRequest.php  ─ RRHH: validación editar usuario
@@ -109,7 +111,8 @@ orion-x/
 │   │   ├── Afp.php
 │   │   ├── Estado.php
 │   │   ├── TipoOrden.php, TipoContrato.php, EstadoOtt.php, CentroCosto.php
-│   │   ├── OrdenTrabajo.php              ─ OTT
+│   │   ├── OrdenTrabajo.php              ─ OTT (relación files + deleting event limpia S3)
+│   │   ├── OttFile.php                  ─ Archivos adjuntos a OTT (S3)
 │   │   ├── TipoPermiso.php, EstadoPermiso.php
 │   │   ├── Permiso.php                   ─ Permiso con detalles dinámicos
 │   │   ├── PermisoDetalle.php            ─ Detalle por día (Con Goce)
@@ -312,6 +315,14 @@ composer run dev         # Inicia server + queue + logs + vite con concurrently
 # Testing
 php artisan test         # Pest tests
 ```
+
+## S3 / Almacenamiento de Archivos
+
+- Disco S3 configurado en `config/filesystems.php`, driver `s3`
+- Bucket: `orion-cormudesi-files` (us-east-1)
+- Archivos de OTT se almacenan en `ott-files/{orden_id}/{uuid}.pdf`
+- Descarga vía `Storage::disk('s3')->download()` (stream directo desde S3)
+- Evento `deleting` en `OrdenTrabajo` limpia archivos S3 al eliminar una OTT
 
 ## Decisiones arquitectónicas
 

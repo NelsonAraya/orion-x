@@ -164,7 +164,8 @@ Portal de autoservicio donde los empleados gestionan sus propias solicitudes. Ca
 ### Funcionalidades implementadas
 - [x] Tab Permisos: lista permisos del usuario autenticado con tabla similar a RRHH
 - [x] Tab Vacaciones: lista solicitudes + tabla de períodos disponibles
-- [x] Tab Órdenes: lista OTT del usuario autenticado
+- [x] Tab Órdenes: lista OTT del usuario autenticado con archivos adjuntos
+- [x] Descarga de archivos OTT desde S3 (solo lectura, sin subir/eliminar)
 - [x] Modal crear permiso (tipo, fecha, motivo; con goce con filas dinámicas)
 - [x] Modal crear vacaciones (rango de fechas + motivo con distribución FIFO)
 - [x] Validación `tiene_fecha_ingreso`: si el usuario no tiene fecha de ingreso registrada, se muestra card ámbar con advertencia y botones "Nueva Solicitud"/"Crear primera solicitud" deshabilitados
@@ -180,7 +181,7 @@ Portal de autoservicio donde los empleados gestionan sus propias solicitudes. Ca
 ## Módulo: RRHH
 
 ### Descripción
-Gestión de usuarios del sistema desde el panel de RRHH. Permite listar todos los usuarios registrados, crear nuevos, editar con 7 tabs (Datos Personales, Información Laboral, Órdenes de Trabajo, Permisos, Vacaciones, Mérito/Demérito, Sistema). Incluye gestión completa de OTT, Permisos (con/sin goce de sueldo), Vacaciones con cálculo automático de períodos según Código del Trabajo / Salud, y control de acceso por permisos del sistema.
+Gestión de usuarios del sistema desde el panel de RRHH. Permite listar todos los usuarios registrados, crear nuevos, editar con 7 tabs (Datos Personales, Información Laboral, Órdenes de Trabajo, Permisos, Vacaciones, Mérito/Demérito, Sistema). Incluye gestión completa de OTT (con archivos PDF en S3), Permisos (con/sin goce de sueldo), Vacaciones con cálculo automático de períodos según Código del Trabajo / Salud, y control de acceso por permisos del sistema.
 
 ### Archivos involucrados
 
@@ -194,7 +195,8 @@ Gestión de usuarios del sistema desde el panel de RRHH. Permite listar todos lo
 - `app/Helpers/VacacionesHelper.php` — Cálculo de periodos, días correspondientes, días hábiles, detección Salud/CT
 - `app/Models/User.php` — Scope search, relaciones OTT/permisos/vacaciones
 - `app/Models/TipoOrden.php`, `TipoContrato.php`, `EstadoOtt.php`, `CentroCosto.php` — Catálogos OTT
-- `app/Models/OrdenTrabajo.php` — Modelo OTT
+- `app/Models/OrdenTrabajo.php` — Modelo OTT (relación `files` + evento `deleting` limpia S3)
+- `app/Models/OttFile.php` — Archivos adjuntos a OTT (accessor `tamano_formateado`, signed URLs S3)
 - `app/Models/TipoPermiso.php`, `EstadoPermiso.php` — Catálogos permisos
 - `app/Models/Permiso.php` — Permiso con detalles dinámicos
 - `app/Models/PermisoDetalle.php` — Detalle por día (Con Goce)
@@ -235,6 +237,9 @@ Gestión de usuarios del sistema desde el panel de RRHH. Permite listar todos lo
 | PATCH | `/rrhh/vacaciones/{vacacion}/rechazar` | `rechazarVacacion` | `rrhh.vacaciones.rechazar` |
 | PATCH | `/rrhh/vacaciones/{vacacion}/anular` | `anularVacacion` | `rrhh.vacaciones.anular` |
 | PATCH | `/rrhh/{user}/permisos-sistema` | `storePermisosSistema` | `rrhh.permisos-sistema`
+| POST | `/rrhh/ordenes/{orden}/archivos` | `storeOttFile` | `rrhh.ordenes.archivos.store`
+| DELETE | `/rrhh/ordenes/archivos/{archivo}` | `destroyOttFile` | `rrhh.ordenes.archivos.destroy`
+| GET | `/rrhh/ordenes/archivos/{archivo}/descargar` | `downloadOttFile` | `rrhh.ordenes.archivos.download`
 
 ### Funcionalidades implementadas
 - [x] Listar usuarios paginados (10 por página)
@@ -251,6 +256,9 @@ Gestión de usuarios del sistema desde el panel de RRHH. Permite listar todos lo
 - [x] Editar usuario con 7 tabs responsive (Datos, Laboral, OTT, Permisos, Vacaciones, Mérito, Sistema)
 - [x] Tabs con scroll horizontal en mobile, íconos + texto abreviado
 - [x] Órdenes de Trabajo: crear, eliminar
+- [x] Archivos OTT: subir PDF a S3, listar, descargar y eliminar (solo RRHH)
+- [x] Al eliminar una OTT, sus archivos en S3 se borran automáticamente (evento `deleting` en OrdenTrabajo)
+- [x] Límite: solo PDF, máximo 20 MB por archivo
 - [x] Permisos: crear con tipos (Con/Sin Goce), eliminar (solo Ingresada), aceptar, rechazar
 - [x] Permisos Con Goce: filas dinámicas (fecha + jornada), max 12 bloques/año
 - [x] Card resumen bloques anuales (solo Aceptados)

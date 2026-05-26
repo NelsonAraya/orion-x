@@ -47,6 +47,9 @@ import {
   Plus,
   Trash2,
   FileText,
+  Paperclip,
+  Download,
+  X,
   AlertTriangle,
   ClipboardList,
   Shield,
@@ -56,6 +59,15 @@ import { useToastContext } from '@/Components/ToastProvider'
 import { ConfirmDialog } from '@/Components/ConfirmDialog'
 import { cn } from '@/lib/utils'
 import type { CatalogItem } from '@/types'
+
+interface OttFile {
+  id: number
+  nombre_original: string
+  mime_type: string
+  tamano: string
+  creado_por: string | null
+  created_at: string
+}
 
 interface OrdenItem {
   id: number
@@ -70,6 +82,7 @@ interface OrdenItem {
   afp: string | null
   prevision: string | null
   estado: string | null
+  files: OttFile[]
   creado_por: string | null
   created_at: string
 }
@@ -185,6 +198,8 @@ export default function Edit({
   const [ottModalOpen, setOttModalOpen] = useState(false)
   const [permisoModalOpen, setPermisoModalOpen] = useState(false)
   const [vacacionModalOpen, setVacacionModalOpen] = useState(false)
+  const [archivosOttModal, setArchivosOttModal] = useState<{ open: boolean; orden: OrdenItem | null }>({ open: false, orden: null })
+  const [archivoSubiendo, setArchivoSubiendo] = useState(false)
   const [rechazoVacacionDialog, setRechazoVacacionDialog] = useState<{ open: boolean; vacacionId: number; observacion: string }>({ open: false, vacacionId: 0, observacion: '' })
   const [anularVacacionDialog, setAnularVacacionDialog] = useState<{ open: boolean; vacacionId: number; observacion: string }>({ open: false, vacacionId: 0, observacion: '' })
   const [confirmAction, setConfirmAction] = useState<{ type: 'update' } | { type: 'create-ott' } | { type: 'delete-ott'; ordenId: number } | { type: 'create-permiso' } | { type: 'delete-permiso'; permisoId: number } | { type: 'aceptar-permiso'; permisoId: number } | { type: 'create-vacacion' } | { type: 'delete-vacacion'; vacacionId: number } | { type: 'aceptar-vacacion'; vacacionId: number } | { type: 'create-vacacion-historico' } | { type: 'update-permisos-sistema' } | null>(null)
@@ -396,6 +411,47 @@ export default function Edit({
 
   const anularVacacion = (vacacionId: number) => {
     setAnularVacacionDialog({ open: true, vacacionId, observacion: '' })
+  }
+
+  const abrirArchivosOtt = (orden: OrdenItem) => {
+    setArchivosOttModal({ open: true, orden })
+  }
+
+  const subirArchivoOtt = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !archivosOttModal.orden) return
+
+    setArchivoSubiendo(true)
+    const formData = new FormData()
+    formData.append('archivo', file)
+
+    router.post(route('rrhh.ordenes.archivos.store', archivosOttModal.orden.id), formData, {
+      preserveScroll: true,
+      onSuccess: () => {
+        setArchivoSubiendo(false)
+        setArchivosOttModal({ open: false, orden: null })
+        addToast({ title: 'Subido', description: 'Archivo subido correctamente.' })
+      },
+      onError: () => {
+        setArchivoSubiendo(false)
+        addToast({ title: 'Error', description: 'No se pudo subir el archivo.', variant: 'destructive' })
+      },
+    })
+  }
+
+  const eliminarArchivoOtt = (fileId: number) => {
+    router.delete(route('rrhh.ordenes.archivos.destroy', fileId), {
+      preserveScroll: true,
+      onSuccess: () => {
+        addToast({ title: 'Eliminado', description: 'Archivo eliminado correctamente.' });
+        setArchivosOttModal(prev => ({
+          ...prev,
+          orden: prev.orden
+            ? { ...prev.orden, files: prev.orden.files.filter(f => f.id !== fileId) }
+            : null,
+        }))
+      },
+    })
   }
 
   const estadoBadge = (estado: string | null) => {
@@ -894,6 +950,7 @@ export default function Edit({
                           <TableHead>AFP</TableHead>
                           <TableHead>Previsión</TableHead>
                           <TableHead>Estado</TableHead>
+                          <TableHead>Archivos</TableHead>
                           <TableHead>Creado por</TableHead>
                           <TableHead className="w-[80px]">Acción</TableHead>
                         </TableRow>
@@ -912,6 +969,17 @@ export default function Edit({
                             <TableCell>{o.afp}</TableCell>
                             <TableCell>{o.prevision}</TableCell>
                             <TableCell>{estadoBadge(o.estado)}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="gap-1 text-muted-foreground hover:text-foreground"
+                                onClick={() => abrirArchivosOtt(o)}
+                              >
+                                <Paperclip className="h-4 w-4" />
+                                {o.files.length > 0 ? o.files.length : ''}
+                              </Button>
+                            </TableCell>
                             <TableCell className="text-xs text-muted-foreground">{o.creado_por}</TableCell>
                             <TableCell>
                               <Button
@@ -1549,6 +1617,87 @@ export default function Edit({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={archivosOttModal.open} onOpenChange={(open) => setArchivosOttModal({ open, orden: open ? archivosOttModal.orden : null })}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Archivos — {archivosOttModal.orden?.ott_display}</DialogTitle>
+            <DialogDescription>
+              {archivosOttModal.orden?.files.length ?? 0} archivo(s) adjunto(s).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {archivosOttModal.orden && archivosOttModal.orden.files.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Paperclip className="h-10 w-10 text-muted-foreground/40 mb-2" />
+                <p className="text-sm text-muted-foreground">No hay archivos adjuntos.</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {archivosOttModal.orden?.files.map((f) => (
+                  <div key={f.id} className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <FileText className="h-8 w-8 shrink-0 text-primary/60" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{f.nombre_original}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {f.tamano} &middot; {f.created_at}
+                          {f.creado_por ? <> &middot; por {f.creado_por}</> : null}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <a
+                        href={route('rrhh.ordenes.archivos.download', f.id)}
+                        download
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                      >
+                        <Download className="h-4 w-4" />
+                      </a>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => eliminarArchivoOtt(f.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="border-t pt-4">
+              <div className="flex items-center gap-3">
+                <input
+                  type="file"
+                  accept=".pdf"
+                  id="archivo-ott-input"
+                  className="hidden"
+                  onChange={subirArchivoOtt}
+                />
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  disabled={archivoSubiendo}
+                  onClick={() => document.getElementById('archivo-ott-input')?.click()}
+                >
+                  {archivoSubiendo ? (
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : (
+                    <Paperclip className="h-4 w-4" />
+                  )}
+                  {archivoSubiendo ? 'Subiendo...' : 'Subir PDF'}
+                </Button>
+                <span className="text-xs text-muted-foreground">PDF, máximo 20 MB</span>
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
