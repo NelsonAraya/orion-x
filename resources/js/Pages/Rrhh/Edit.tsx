@@ -54,6 +54,8 @@ import {
   ClipboardList,
   Shield,
   Award,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react'
 import { useToastContext } from '@/Components/ToastProvider'
 import { ConfirmDialog } from '@/Components/ConfirmDialog'
@@ -172,6 +174,7 @@ interface Props {
   periodos_vacaciones: PeriodoVacacion[]
   permisos_sistema: Array<{ id: number; nombre: string; slug: string; descripcion: string }>
   user_permisos: string[]
+  modulo_perfiles: Record<string, string>
 }
 
 export default function Edit({
@@ -193,6 +196,7 @@ export default function Edit({
   periodos_vacaciones,
   permisos_sistema = [],
   user_permisos = [],
+  modulo_perfiles = {},
 }: Props) {
   const [activeTab, setActiveTab] = useState('datos-personales')
   const [ottModalOpen, setOttModalOpen] = useState(false)
@@ -202,7 +206,7 @@ export default function Edit({
   const [archivoSubiendo, setArchivoSubiendo] = useState(false)
   const [rechazoVacacionDialog, setRechazoVacacionDialog] = useState<{ open: boolean; vacacionId: number; observacion: string }>({ open: false, vacacionId: 0, observacion: '' })
   const [anularVacacionDialog, setAnularVacacionDialog] = useState<{ open: boolean; vacacionId: number; observacion: string }>({ open: false, vacacionId: 0, observacion: '' })
-  const [confirmAction, setConfirmAction] = useState<{ type: 'update' } | { type: 'create-ott' } | { type: 'delete-ott'; ordenId: number } | { type: 'create-permiso' } | { type: 'delete-permiso'; permisoId: number } | { type: 'aceptar-permiso'; permisoId: number } | { type: 'create-vacacion' } | { type: 'delete-vacacion'; vacacionId: number } | { type: 'aceptar-vacacion'; vacacionId: number } | { type: 'create-vacacion-historico' } | { type: 'update-permisos-sistema' } | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ type: 'update' } | { type: 'create-ott' } | { type: 'delete-ott'; ordenId: number } | { type: 'create-permiso' } | { type: 'delete-permiso'; permisoId: number } | { type: 'aceptar-permiso'; permisoId: number } | { type: 'create-vacacion' } | { type: 'delete-vacacion'; vacacionId: number } | { type: 'aceptar-vacacion'; vacacionId: number } | { type: 'create-vacacion-historico' } | { type: 'update-permisos-sistema' } | { type: 'update-modulo-perfiles' } | null>(null)
   const [rechazoDialog, setRechazoDialog] = useState<{ open: boolean; permisoId: number; observacion: string }>({ open: false, permisoId: 0, observacion: '' })
   const { addToast } = useToastContext()
 
@@ -256,9 +260,65 @@ export default function Edit({
   })
 
   const [userPermisosEdit, setUserPermisosEdit] = useState<string[]>([...user_permisos])
+  const [cementerioExpanded, setCementerioExpanded] = useState(false)
+  const [perfilesSubmodulos, setPerfilesSubmodulos] = useState<Record<string, string>>({ ...modulo_perfiles })
   const permisosSistemaForm = useForm({
     permisos: user_permisos,
   })
+
+  const cementerioGroups = [
+    {
+      label: 'Gestión Mortuaria',
+      slug: 'cementerio-gestion-mortuaria',
+      children: [
+        { label: 'Registro de Fallecido', slug: 'cementerio-registro-fallecido' },
+        { label: 'Historial Deudores', slug: 'cementerio-historial-deudores' },
+      ],
+    },
+    {
+      label: 'Orden de Trabajo',
+      slug: 'cementerio-orden-trabajo',
+      children: [
+        { label: 'Ingresar OT', slug: 'cementerio-ingresar-ot' },
+        { label: 'Buscar OT', slug: 'cementerio-buscar-ot' },
+      ],
+    },
+    {
+      label: 'Ubicaciones',
+      slug: 'cementerio-ubicaciones',
+      children: [
+        { label: 'Consultar Ubicaciones', slug: 'cementerio-consultar-ubicaciones' },
+        { label: 'Buscar por Fallecido', slug: 'cementerio-buscar-por-fallecido' },
+      ],
+    },
+    {
+      label: 'Documentos',
+      slug: 'cementerio-documentos',
+      children: [],
+    },
+    {
+      label: 'Reportes',
+      slug: 'cementerio-reportes',
+      children: [],
+    },
+  ]
+
+  const perfilOptions = [
+    { value: 'superadmin', label: 'Superadmin' },
+    { value: 'admin', label: 'Administrador' },
+    { value: 'usuario', label: 'Usuario' },
+    { value: 'auditor', label: 'Auditor' },
+  ]
+
+  const togglePermiso = (slug: string) => {
+    setUserPermisosEdit(prev =>
+      prev.includes(slug)
+        ? prev.filter(s => s !== slug)
+        : [...prev, slug]
+    )
+  }
+
+
 
   const handleConfirm = () => {
     if (!confirmAction) return
@@ -342,6 +402,14 @@ export default function Edit({
           onSuccess: () => addToast({ title: 'Permisos', description: 'Permisos actualizados correctamente.' }),
         })
         break
+      case 'update-modulo-perfiles':
+        router.patch(route('rrhh.modulo-perfiles', user.id), {
+          asignaciones: perfilesSubmodulos,
+        }, {
+          preserveScroll: true,
+          onSuccess: () => addToast({ title: 'Acciones', description: 'Acciones actualizadas correctamente.' }),
+        })
+        break
     }
     setConfirmAction(null)
   }
@@ -395,6 +463,11 @@ export default function Edit({
     e.preventDefault()
     permisosSistemaForm.setData('permisos', userPermisosEdit)
     setConfirmAction({ type: 'update-permisos-sistema' })
+  }
+
+  const submitModuloPerfiles = (e: React.FormEvent) => {
+    e.preventDefault()
+    setConfirmAction({ type: 'update-modulo-perfiles' })
   }
 
   const deleteVacacion = (vacacionId: number) => {
@@ -553,10 +626,15 @@ export default function Edit({
               <span className="hidden sm:inline">Mérito / Demérito</span>
               <span className="inline sm:hidden">Mérito</span>
             </TabsTrigger>
-            <TabsTrigger value="sistema" className="gap-2 w-[calc(33.33%-4px)] sm:w-auto min-h-[40px]">
+            <TabsTrigger value="accesos" className="gap-2 w-[calc(33.33%-4px)] sm:w-auto min-h-[40px]">
               <Shield className="h-4 w-4 shrink-0" />
-              <span className="hidden sm:inline">Sistema</span>
-              <span className="inline sm:hidden">Sistema</span>
+              <span className="hidden sm:inline">Accesos</span>
+              <span className="inline sm:hidden">Accesos</span>
+            </TabsTrigger>
+            <TabsTrigger value="acciones" className="gap-2 w-[calc(33.33%-4px)] sm:w-auto min-h-[40px]">
+              <Shield className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Acciones</span>
+              <span className="inline sm:hidden">Acciones</span>
             </TabsTrigger>
           </TabsList>
 
@@ -1343,16 +1421,16 @@ export default function Edit({
             </Card>
           </TabsContent>
 
-          <TabsContent value="sistema" className="mt-6 animate-fade-in-up">
+          <TabsContent value="accesos" className="mt-6 animate-fade-in-up">
             <Card>
               <CardHeader className="flex flex-row items-center gap-3 pb-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50 dark:bg-purple-950/20">
                   <Shield className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div>
-                  <CardTitle>Permisos del Sistema</CardTitle>
+                  <CardTitle>Accesos</CardTitle>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    Asigna permisos del sistema a {user.nombres} {user.apellido_paterno}.
+                    Asigna los módulos que pueden ser visualizados por los usuarios.
                   </p>
                 </div>
               </CardHeader>
@@ -1360,7 +1438,130 @@ export default function Edit({
                 {permisos_sistema && permisos_sistema.length > 0 ? (
                   <form onSubmit={submitPermisosSistema}>
                     <div className="space-y-3">
-                      {permisos_sistema.map((permiso) => {
+                      {permisos_sistema.filter(p => p.slug === 'cementerio' || !p.slug.startsWith('cementerio-')).map((permiso) => {
+                        if (permiso.slug === 'cementerio') {
+                          const tieneCementerio = userPermisosEdit.includes('cementerio')
+                          return (
+                            <div key={permiso.id} className="rounded-md border">
+                              <div className="flex items-center gap-3 p-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setCementerioExpanded(!cementerioExpanded)}
+                                  className="flex h-5 w-5 items-center justify-center text-muted-foreground hover:text-foreground"
+                                >
+                                  {cementerioExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                </button>
+                                <Shield className="h-5 w-5 shrink-0 text-muted-foreground" />
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium">{permiso.nombre}</p>
+                                  <p className="text-xs text-muted-foreground">{permiso.descripcion}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={tieneCementerio}
+                                  onClick={() => togglePermiso('cementerio')}
+                                  className={cn(
+                                    'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                                    tieneCementerio ? 'bg-primary' : 'bg-input'
+                                  )}
+                                >
+                                  <span className={cn(
+                                    'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform',
+                                    tieneCementerio ? 'translate-x-5' : 'translate-x-0'
+                                  )} />
+                                </button>
+                              </div>
+                              {cementerioExpanded && tieneCementerio && (
+                                <div className="space-y-2 border-t px-3 pb-3 pt-2">
+                                  {cementerioGroups.map((group) => {
+                                    const isChildless = group.children.length === 0
+                                    const groupEnabled = userPermisosEdit.includes(group.slug)
+                                    const someChildrenEnabled = group.children.some(c => userPermisosEdit.includes(c.slug))
+                                    return (
+                                      <div key={group.slug}>
+                                        {isChildless ? (
+                                          <div className="ml-6 flex items-center gap-3 rounded-md border py-3 px-2.5">
+                                            <div className="flex-1">
+                                              <p className="text-sm font-medium">{group.label}</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                role="switch"
+                                                aria-checked={groupEnabled}
+                                                onClick={() => togglePermiso(group.slug)}
+                                                className={cn(
+                                                  'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                                                  groupEnabled ? 'bg-primary' : 'bg-input'
+                                                )}
+                                              >
+                                                <span className={cn(
+                                                  'pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-transform',
+                                                  groupEnabled ? 'translate-x-4' : 'translate-x-0'
+                                                )} />
+                                              </button>
+                                          </div>
+                                        ) : (
+                                          <div className="ml-6 rounded-md border">
+                                            <div className="flex items-center gap-3 p-2.5">
+                                              <div className="flex-1">
+                                                <p className="text-sm font-medium">{group.label}</p>
+                                              </div>
+                                              <button
+                                                type="button"
+                                                role="switch"
+                                                aria-checked={groupEnabled}
+                                                onClick={() => togglePermiso(group.slug)}
+                                                className={cn(
+                                                  'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                                                  groupEnabled ? 'bg-primary' : 'bg-input'
+                                                )}
+                                              >
+                                                <span className={cn(
+                                                  'pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-transform',
+                                                  groupEnabled ? 'translate-x-4' : 'translate-x-0'
+                                                )} />
+                                              </button>
+                                            </div>
+                                            {(groupEnabled || someChildrenEnabled) && (
+                                              <div className="space-y-1.5 border-t px-3 pb-2 pt-1.5">
+                                                {group.children.map((child) => {
+                                                  const childEnabled = userPermisosEdit.includes(child.slug)
+                                                  return (
+                                                    <div key={child.slug} className="ml-3 flex items-center gap-3 rounded-md border py-2.5 px-2">
+                                                      <div className="flex-1">
+                                                        <p className="text-sm">{child.label}</p>
+                                                      </div>
+                                                      <button
+                                                        type="button"
+                                                        role="switch"
+                                                        aria-checked={childEnabled}
+                                                        onClick={() => togglePermiso(child.slug)}
+                                                        className={cn(
+                                                          'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                                                          childEnabled ? 'bg-primary' : 'bg-input'
+                                                        )}
+                                                      >
+                                                        <span className={cn(
+                                                          'pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-transform',
+                                                          childEnabled ? 'translate-x-4' : 'translate-x-0'
+                                                        )} />
+                                                      </button>
+                                                    </div>
+                                                  )
+                                                })}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        }
                         const tienePermiso = userPermisosEdit.includes(permiso.slug)
                         return (
                           <div key={permiso.id} className="flex items-center gap-3 rounded-md border p-3">
@@ -1373,13 +1574,7 @@ export default function Edit({
                               type="button"
                               role="switch"
                               aria-checked={tienePermiso}
-                              onClick={() => {
-                                if (tienePermiso) {
-                                  setUserPermisosEdit(userPermisosEdit.filter(s => s !== permiso.slug))
-                                } else {
-                                  setUserPermisosEdit([...userPermisosEdit, permiso.slug])
-                                }
-                              }}
+                              onClick={() => togglePermiso(permiso.slug)}
                               className={cn(
                                 'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                                 tienePermiso ? 'bg-primary' : 'bg-input'
@@ -1416,6 +1611,126 @@ export default function Edit({
                     <p className="text-sm text-muted-foreground">No hay permisos disponibles.</p>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="acciones" className="mt-6 animate-fade-in-up">
+            <Card>
+              <CardHeader className="flex flex-row items-center gap-3 pb-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50 dark:bg-purple-950/20">
+                  <Shield className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <CardTitle>Acciones</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Asigna acciones que pueden realizar los usuarios.
+                  </p>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={submitModuloPerfiles} autoComplete="off">
+                <div className="space-y-3">
+                  {permisos_sistema.filter(p => p.slug === 'cementerio' || !p.slug.startsWith('cementerio-')).map((permiso) => {
+                    if (permiso.slug === 'cementerio') {
+                      return (
+                        <div key={permiso.id} className="rounded-md border">
+                          <div className="flex items-center gap-3 p-3">
+                            <button
+                              type="button"
+                              onClick={() => setCementerioExpanded(!cementerioExpanded)}
+                              className="flex h-5 w-5 items-center justify-center text-muted-foreground hover:text-foreground"
+                            >
+                              {cementerioExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            </button>
+                            <Shield className="h-5 w-5 shrink-0 text-muted-foreground" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{permiso.nombre}</p>
+                              <p className="text-xs text-muted-foreground">{permiso.descripcion}</p>
+                            </div>
+                          </div>
+                          {cementerioExpanded && (
+                            <div className="space-y-2 border-t px-3 pb-3 pt-2">
+                              {cementerioGroups.map((group) => {
+                                const isChildless = group.children.length === 0
+                                return (
+                                  <div key={group.slug}>
+                                    {isChildless ? (
+                                      <div className="ml-6 flex items-center gap-3 rounded-md border py-3 px-2.5">
+                                        <div className="flex-1">
+                                          <p className="text-sm font-medium">{group.label}</p>
+                                        </div>
+                                        <select
+                                          value={perfilesSubmodulos[group.slug] || 'superadmin'}
+                                          onChange={(e) => setPerfilesSubmodulos(prev => ({ ...prev, [group.slug]: e.target.value }))}
+                                          className="h-9 w-[140px] rounded-md border border-input bg-transparent px-2 text-xs text-muted-foreground"
+                                        >
+                                          {perfilOptions.map(opt => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    ) : (
+                                      <div className="ml-6 rounded-md border">
+                                        <div className="flex items-center gap-3 p-2.5">
+                                          <div className="flex-1">
+                                            <p className="text-sm font-medium">{group.label}</p>
+                                          </div>
+                                        </div>
+                                        <div className="space-y-1.5 border-t px-3 pb-2 pt-1.5">
+                                          {group.children.map((child) => (
+                                            <div key={child.slug} className="ml-3 flex items-center gap-3 rounded-md border py-2.5 px-2">
+                                              <div className="flex-1">
+                                                <p className="text-sm">{child.label}</p>
+                                              </div>
+                                              <select
+                                                value={perfilesSubmodulos[child.slug] || 'superadmin'}
+                                                onChange={(e) => setPerfilesSubmodulos(prev => ({ ...prev, [child.slug]: e.target.value }))}
+                                                className="h-9 w-[140px] rounded-md border border-input bg-transparent px-2 text-xs text-muted-foreground"
+                                              >
+                                                {perfilOptions.map(opt => (
+                                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }
+                    return (
+                      <div key={permiso.id} className="flex items-center gap-3 rounded-md border p-3">
+                        <Shield className="h-5 w-5 shrink-0 text-muted-foreground" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{permiso.nombre}</p>
+                          <p className="text-xs text-muted-foreground">{permiso.descripcion}</p>
+                        </div>
+                        <select
+                          value={perfilesSubmodulos[permiso.slug] || 'superadmin'}
+                          onChange={(e) => setPerfilesSubmodulos(prev => ({ ...prev, [permiso.slug]: e.target.value }))}
+                          className="h-9 w-[140px] rounded-md border border-input bg-transparent px-2 text-xs text-muted-foreground"
+                        >
+                          {perfilOptions.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <Button type="submit">
+                    Guardar
+                  </Button>
+                </div>
+                </form>
               </CardContent>
             </Card>
           </TabsContent>
@@ -2314,6 +2629,18 @@ export default function Edit({
           title="¿Actualizar permisos del sistema?"
           message="Se asignarán los permisos seleccionados al usuario."
           confirmText="Sí, actualizar"
+          confirmColor="#1a6bdb"
+          onConfirm={handleConfirm}
+          onCancel={() => setConfirmAction(null)}
+        />
+      )}
+
+      {confirmAction?.type === 'update-modulo-perfiles' && (
+        <ConfirmDialog
+          open
+          title="¿Guardar acciones?"
+          message="Se asignarán los perfiles seleccionados a cada submódulo."
+          confirmText="Sí, guardar"
           confirmColor="#1a6bdb"
           onConfirm={handleConfirm}
           onCancel={() => setConfirmAction(null)}

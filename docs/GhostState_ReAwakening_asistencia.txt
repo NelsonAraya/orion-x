@@ -1,0 +1,173 @@
+# GhostState ReAwakening
+
+## Ultima sesion - COMPLETADA (04-08-2026)
+**Etapa 4 del modulo Asistencia COMPLETA.** Reportes "Por Unidad" completo (hub con flujo Buscar por lugar, navegacion Diario/Mensual via IntegrantesModal con ?unidad=, detalle diario con flujo Buscar) + nuevo modulo Horarios (buscador funcionario con autocomplete, ficha, formulario de creacion/edicion con tabla semanal y switches Laborable, tabla de horarios disponibles, modal detalle) como maqueta 100% mock sin backend. Reporte Avanzado eliminado (era placeholder). Modelo acordado: los funcionarios NO tienen horario predeterminado; el modulo sirve para crear horarios y la asistencia los seleccionara entre los que tenga el funcionario.
+
+---
+
+## 04-08-2026
+
+### Reportes "Por Unidad" — Hub (resources/js/Pages/Asistencia/Reportes/PorUnidad.tsx)
+- Placeholder eliminado, hub reescrito: filtro Lugar de Desempeno + boton "Buscar" (cambiar lugar resetea `buscar=false`), aviso "Seleccione un lugar de desempeno", aviso "Sin unidades en este lugar" (CESFAMs), grid de tarjetas de unidad con indicadores (dotacion, presentes, ausentes, cumplimiento + barra de progreso) y boton "Ver integrantes" (ancho completo)
+- Rutas nuevas en routes/web.php: `asistencia.reportes.por-unidad.diario` y `.mensual`
+- AppLayout: "Por Unidad" convertido en submenu (Unidades/Diario/Mensual) con `toggleMenu('asistencia_por_unidad')`, iconos Building2/CalendarDays/CalendarRange
+- Fix: import `ComparacionMesUnidad` faltante en asistenciaMockData.ts
+
+### Flujo "Buscar" en Unidades
+- Asociacion de lugares: Casa Central -> Informatica, Remuneraciones, Contabilidad, Recursos Humanos; DAS -> Asesores; CESFAMs (aguirre/guzman/sur/videla) sin unidades
+- Unidad "Asesores" movida de `casa-central` a `das` en unidadesCasaCentral
+- 3 funcionarios Asesores (id 19-21) con `lugarDesempeno: 'DAS'`
+
+### Navegacion (Diario/Mensual + IntegrantesModal)
+- Botones Reporte Diario/Mensual quitados de las tarjetas del hub -> solo "Ver integrantes"
+- IntegrantesModal: columna "Lugar de Desempeno" eliminada; acciones por fila = links "Reporte Diario" y "Reporte Mensual" con `?unidad={unidad.id}`, ambos `w-36` (Diario azul border-blue-200 bg-blue-50, Mensual purpura border-purple-200 bg-purple-50)
+- Diario.tsx y Mensual.tsx leen `?unidad=` de la URL (usePage dentro del componente para respetar hooks) y preseleccionan unidad + sincronizan el filtro Lugar; fallback 'informatica'
+- VerAsistenciaModal sigue existiendo y se usa en Diario/Mensual
+
+### Datos mock nuevos
+- Funcionarios 22 (Ignacio Rojas Duran, 20.250.541-4) y 23 (Dorian Ricaldy Tondola, 28.728.058-0), ambos Soporte Tecnico Informatico, Casa Central
+- Informatica: dotacion 8, presentes 3, ausentes 1
+- Estados Diario: Felipe Romero (id 6) ausente "Sin justificacion"; Juan Flores (id 3) licencia "Licencia medica (dia 2 de 3)"; Daniel Fernandez (id 5) vacaciones "Vacaciones legales"; ids 22/23 presente 08:00-17:00
+- Sync: alertasDia (Felipe ausente; "3 de 5 soportes tecnicos no disponibles hoy"); resumen Diario Informatica 8/3/1/1/1/1/1; Mensual (Dotacion 8, Horas Esperadas 1,472h, Horas Trabajadas 1,360h, +2 filas detalle ids 7 y 8)
+
+### Flujo "Buscar" en Diario (resources/js/Pages/Asistencia/Reportes/PorUnidad/Diario.tsx)
+- Select Unidad filtrado por lugar (`unidadesDelLugar` via useMemo), deshabilitado si el lugar no tiene unidades
+- Estado `buscar` inicial = `Boolean(queryUnidad)` (true solo con ?unidad= valido en la URL)
+- Boton Buscar -> setBuscar(true); cambiar lugar (cambiarLugar preselecciona primera unidad) o cambiar unidad resetea `buscar=false`; Limpiar resetea todo
+- Render condicional: aviso "Seleccione un lugar..." -> "Sin unidades en este lugar" -> tarjetas resumen + panel "Detalle Diario de la Unidad"
+- Mensual.tsx lee ?unidad= pero NO tiene flujo Buscar (no solicitado)
+
+### Reporte Avanzado eliminado
+- resources/js/Pages/Asistencia/Reportes/ReporteAvanzado.tsx borrado (era solo placeholder "Proximamente")
+- Ruta `asistencia.reportes.reporte-avanzado` removida de web.php
+- Link del sidebar en AppLayout removido; import `BarChart3` conservado (se usa en el link colapsado "Reportes")
+
+### Modulo Horarios (resources/js/Pages/Asistencia/Horarios/Index.tsx) — NUEVA VISTA
+- Placeholder "Proximamente" reemplazado por vista completa (maqueta estatica, sin backend)
+- Buscador de funcionario con autocomplete identico a PorFuncionario (Search icon, Input, X limpiar, dropdown con iniciales/nombre/RUT). Funcionario unico: "Funcionario de Prueba" 11.111.111-1; escribir 11111111 sugiere y click carga ficha + banner de seleccion con boton Limpiar
+- Ficha "Informacion del Funcionario": avatar iniciales, nombre, RUT, badge Estado, grid Cargo/Profesion/Unidad/Centro de Salud/Jornada/Estado (mismo estilo PorFuncionario)
+- Tabs: "Editar Horario" / "Horarios Disponibles" (default "Horarios Disponibles")
+  - Formulario: Nombre, Descripcion, Estado + tabla semanal (Dia | switch Laborable | Hora Entrada | Hora Salida type=time). Switch OFF -> inputs deshabilitados + badge "Fin de Semana" (Sab/Dom) o "No Laborable". Switch con patron `role="switch"` de Rrhh/Edit.tsx
+  - Tabla Horarios Disponibles: Nombre / Jornada / Horas Semanales / Estado / Acciones (Visualizar, Editar, Duplicar) + boton "Nuevo Horario"
+  - Modal detalle (Dialog) al pulsar Visualizar: jornada, horas semanales, dias laborales (5), dias de descanso (2), estado, fecha asignacion, distribucion semanal
+- Tipos nuevos en types/asistencia.ts: `DiaHorario` (dia, laborable, entrada, salida) y `HorarioLaboral` (id, nombre, descripcion, jornada, horasSemanales, diasLaborales, diasDescanso, estado, fechaAsignacion, dias)
+- Mock nuevo en asistenciaMockData.ts: `horariosLaborales`:
+  - Horario CESFAM (Completa, 43,75 h, L-V 07:45-16:30, S/D Fin de Semana, estado Activo, fechaAsignacion 01-07-2026)
+  - Horario Administrativo (Completa, 44 h, L-J 08:00-17:00 y V 08:00-16:00, S/D Fin de Semana, estado Disponible)
+- Decisiones de UX acordadas: Guardar decorativo (vista maqueta, sin mutar lista); Editar/Duplicar/Nuevo precargan el formulario con datos estaticos; Asignar NO existia aun en ese momento; tab default "Horarios Disponibles"
+
+### Ajuste Horarios — sin horario predeterminado
+- Eliminada la card "Horario Actualmente Asignado" completa (nombre, badge "Horario Activo", distribucion, metricas, boton "Cambiar Horario")
+- Eliminado el boton "Asignar" de la tabla (quedan Visualizar / Editar / Duplicar)
+- Campo `asignado` eliminado de `HorarioLaboral` (tipo + mock data)
+- Modelo acordado: los funcionarios NO tienen horario predeterminado. Este modulo es para CREAR horarios. Al ver la asistencia se seleccionara entre los horarios que tenga el funcionario (futuro)
+- Texto del estado vacio del formulario actualizado (sin mencion a "Cambiar Horario")
+
+### Archivos tocados hoy
+- resources/js/Pages/Asistencia/Reportes/PorUnidad.tsx
+- resources/js/Pages/Asistencia/Reportes/PorUnidad/Diario.tsx
+- resources/js/Pages/Asistencia/Reportes/PorUnidad/Mensual.tsx
+- resources/js/Pages/Asistencia/Reportes/PorUnidad/IntegrantesModal.tsx
+- resources/js/Pages/Asistencia/Reportes/PorUnidad/VerAsistenciaModal.tsx (referenciado, sin cambios)
+- resources/js/Pages/Asistencia/Horarios/Index.tsx (reescrito)
+- resources/js/Pages/Asistencia/Reportes/ReporteAvanzado.tsx (ELIMINADO)
+- resources/js/lib/asistenciaMockData.ts
+- resources/js/types/asistencia.ts
+- resources/js/Layouts/AppLayout.tsx (submenu Por Unidad, link Reporte Avanzado removido)
+- routes/web.php (+2 rutas por-unidad diario/mensual, -1 reporte-avanzado)
+
+### Verificacion
+- npx tsc --noEmit -> 0 errores
+- npx eslint --fix -> solo react/no-children-prop aceptado (convencion del proyecto: `layout = (page) => <AppLayout title=... children={page} />`)
+- npm run build -> 0 errores (solo warnings de deprecacion de Vite/esbuild/rolldown)
+
+### Docs actualizados
+- Este archivo: GhostState_ReAwakening_asistencia.txt
+
+### Build
+- npm run build -> 0 errores
+
+---
+
+## Proyecto: ORION-X HRMS — Modulo Asistencia
+
+### Stack
+- Laravel 13 + React 18 + Inertia.js v2 + Tailwind 3 + TypeScript 5
+- shadcn/ui (card, badge, button, table, tabs, dialog, select, input, label)
+- lucide-react (iconos)
+- El modulo Asistencia es 100% mock (sin backend, sin modelos, sin SQL); solo rutas Inertia hacia componentes React
+
+### Convenciones
+- Paginas en `resources/js/Pages/Asistencia/` con `.layout = (page: ReactNode) => <AppLayout title="..." children={page} />`
+- Datos mock en `resources/js/lib/asistenciaMockData.ts`, tipos en `resources/js/types/asistencia.ts`
+- Animacion de pagina: `<div className="animate-fade-in-up space-y-6">`
+- Breadcrumbs ultimo item sin href
+- cn() desde `@/lib/utils`
+- Sidebar permiso guard: `permisos.includes('asistencia') &&`
+- Aviso lint aceptado: `react/no-children-prop` en el layout (igual en Cementerio)
+
+### Sidebar (AppLayout.tsx)
+```
+Asistencia (ClipboardCheck)
++-- Dashboard (LayoutDashboard)
++-- Reportes (FileBarChart)
+|   +-- Por Funcionario (Users)
+|   +-- Por Unidad (List)
+|       +-- Unidades (Building2)
+|       +-- Diario (CalendarDays)
+|       +-- Mensual (CalendarRange)
++-- Horarios (Clock)
+```
+
+### Rutas (web.php, grupo asistencia., middleware auth+verified)
+```
+GET /asistencia (redirect -> dashboard)
+GET /asistencia/dashboard                       -> Asistencia/Dashboard/Index
+GET /asistencia/reportes/por-funcionario        -> Asistencia/Reportes/PorFuncionario
+GET /asistencia/reportes/por-unidad             -> Asistencia/Reportes/PorUnidad
+GET /asistencia/reportes/por-unidad/diario      -> Asistencia/Reportes/PorUnidad/Diario
+GET /asistencia/reportes/por-unidad/mensual     -> Asistencia/Reportes/PorUnidad/Mensual
+GET /asistencia/horarios                        -> Asistencia/Horarios/Index
+(eliminada 04-08: /asistencia/reportes/reporte-avanzado)
+```
+
+### Paginas (todas mock)
+| Pagina | Contenido |
+|---|---|
+| Dashboard/Index | KPIs, graficos, alertas, actividad reciente |
+| Reportes/PorFuncionario | Buscador RUT + cartola mensual + resumen periodo |
+| Reportes/PorUnidad (hub) | Filtro lugar + Buscar -> tarjetas de unidad + IntegrantesModal |
+| Reportes/PorUnidad/Diario | Filtro lugar/unidad + Buscar -> resumen + detalle diario + VerAsistenciaModal |
+| Reportes/PorUnidad/Mensual | Lee ?unidad= -> resumen + detalle mensual + evolucion |
+| Horarios/Index | Buscador funcionario + ficha + tabs (Editar Horario / Horarios Disponibles) + modal detalle |
+
+### Datos clave (asistenciaMockData.ts)
+- lugaresDesempeno (6): casa-central, das, cesfam-aguirre, cesfam-guzman, cesfam-sur, cesfam-videla
+- unidadesCasaCentral (5): Informatica (dotacion 8), Remuneraciones (4), Contabilidad (3), Recursos Humanos (5) -> casa-central; Asesores (3) -> das
+- funcionariosUnidad: 23 funcionarios (ids 1-23); Asesores (id 19-21) lugarDesempeno 'DAS'; ids 22-23 nuevos Soporte Tecnico Informatico en Casa Central
+- funcionarios: "Funcionario de Prueba" 11.111.111-1 (usado en PorFuncionario y Horarios)
+- horariosLaborales: Horario CESFAM (43,75 h, Activo) y Horario Administrativo (44 h, Disponible). Sin campo asignado (funcionarios no tienen horario predeterminado)
+- datosDiarioPorUnidad / datosMensualPorUnidad: solo "Informatica" completa
+- Estados Diario Informatica: presente (incluye ids 22/23), ausente (Felipe Romero), permiso, licencia (Juan Flores "dia 2 de 3"), vacaciones (Daniel Fernandez)
+
+### Decisiones de diseno
+- **Flujo "Buscar"** en Unidades y Diario: los resultados solo se muestran tras presionar Buscar (o con ?unidad= valido en la URL). Cambiar lugar/unidad resetea la busqueda
+- **?unidad= en la URL**: los reportes Diario/Mensual reciben la unidad seleccionada via query param desde IntegrantesModal; no hay state compartido entre paginas
+- **IntegrantesModal** centraliza los accesos a Diario/Mensual por fila (en vez de botones en las tarjetas del hub)
+- **Maqueta estatica de Horarios**: Guardar/Asignar decorativos; solo interaccion de estado: autocomplete, switches Laborable, tabs y modal detalle
+- **Sin horario predeterminado**: la card "Horario Actualmente Asignado" se elimino; el modulo Horarios es de creacion/edicion, y la asistencia seleccionara el horario entre los del funcionario (futuro)
+- **Switch `role="switch"`**: patron inline (button con knob translate-x) copiado de Rrhh/Edit.tsx, no hay componente Switch en ui/
+
+### Critical Context
+- **Encoding:** Solo la herramienta `write`/`edit` o `[System.IO.File]::WriteAllText(path, content, [System.Text.UTF8Encoding]::new($false))` son seguros. PowerShell `Set-Content` escribe UTF-16 corrompiendo tildes/Ñ.
+- **Permisos:** `permisos.includes('asistencia')` controla el sidebar completo del modulo.
+- **Convencion lint:** `react/no-children-prop` en `.layout = (page) => <AppLayout title=... children={page} />` es aceptado en todo el proyecto.
+- **Verificacion estandar:** `npx tsc --noEmit` + `npx eslint --fix` + `npm run build`.
+- **Mock sin backend:** el modulo Asistencia no tiene modelos/migraciones/controladores; todas las rutas son closures `inertia()`.
+
+### En lo que quedamos / Proximos pasos candidatos
+1. Modulo Horarios es una maqueta estatica: Guardar/Asignar son decorativos, no persisten ni agregan a la lista. Falta definir si se conectara a backend real.
+2. Concepto acordado (futuro): en la vista de asistencia se seleccionara el horario entre los que tenga el funcionario (no hay horario predeterminado).
+3. Mensual.tsx lee ?unidad= pero no tiene flujo "Buscar" como Diario (no solicitado; por consistencia podria agregarse).
+4. Dashboard y Reportes/PorFuncionario no se tocaron en la Etapa 4 (spec: solo vista Horarios).
+5. Todo el modulo Asistencia sigue 100% mock; posible siguiente etapa: conectar a backend real (funcionarios, unidades, horarios, registros de asistencia).

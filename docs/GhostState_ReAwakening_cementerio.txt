@@ -1,0 +1,495 @@
+# GhostState ReAwakening
+
+## Ultima sesion - COMPLETADA (02-07-2026)
+**PROCESO FINANCIERO DE OTs COMPLETO.** Sistema de estados de OT (Ingresada, Finalizada, Anulada) con tabla cementerio_ot_estados y FK ot_estado_id reemplazando columna estado varchar. Migracion automatica de datos existentes. Editar OT modal con campos editables (relacion, contactos, ubicacion, estado) y campos financieros read-only. Anulacion con SweetAlert2 de confirmacion (fuerte si hay cuotas pagadas, simple si no) que anula todas las cuotas asociadas. Finalizacion automatica de OT al pagar la ultima cuota con SweetAlert de exito. SweetAlert2 ahora funciona correctamente dentro de Radix Dialogs: se cierra el Dialog antes de mostrar. Boton Editar OT visible solo para Superadmin/Admin. Docs actualizados (memory-modulos, memory-estructura, GhostState).
+
+---
+
+## 01-07-2026
+
+### Backend (nuevo modelo + migracion + controlador)
+- +1 modelo nuevo (total 18): UserModuloPerfil (user_id, modulo_slug, perfil_slug, unique compuesto)
+- +1 migracion (total 28): create_user_modulo_perfil_table
+- User model: +relacion moduloPerfiles() (HasMany UserModuloPerfil)
+- HandleInertiaRequests: comparte modulo_perfiles (Record<string, string>)
+- RrhhUserController: +updateModuloPerfiles (PATCH, elimina y re-inserta)
+- +1 ruta: PATCH /rrhh/{user}/modulo-perfiles (rrhh.modulo-perfiles)
+- Cuota model: $casts fecha_vencimiento => 'date'
+
+### Nuevos permisos semilla
+- PermisoSistemaSeeder: +7 slugs cementerio-* (gestion-mortuaria, registro-fallecido, historial-deudores, orden-trabajo, ingresar-ot, buscar-ot, reportes). Total: 10 permisos
+
+### Frontend (Accesos+Acciones + sidebar condicional + Reportes real + autocComplete)
+- RRHH Edit.tsx: Tab Sistema dividido en Accesos (toggles permiso por modulo) y Acciones (selects perfil por submodulo: Superadmin/Admin/Usuario/Auditor). Cementerio expandible con chevron y sub-toggles anidados independientes (sin toggleGroup/toggleChildOnly). Selects conectados al backend via form + boton Guardar + ConfirmDialog
+- AppLayout.tsx: cada link del sidebar checa su sub-permiso especifico (cementerio-registro-fallecido, etc.). Backward compat: si tiene cementerio pero ningun cementerio-*, se muestran todos los items
+- Reportes.tsx: cuotasPorVencer ahora real (query con calculo de dias restantes, estado dinamico vencida/proximo/futura, filtro pendiente/parcial, paginacion local)
+- IngresarOt.tsx: autoComplete="off" en 12 inputs del formulario
+
+### Docs actualizados
+- memory-modulos.md: RRHH (UserModuloPerfil, ruta modulo-perfiles, Accesos+Acciones), Cementerio (sidebar condicional, 7 nuevos slugs, cuotasPorVencer, autoComplete IngresarOt)
+- memory-estructura.md: UserModuloPerfil, migracion 45, seccion permisos reescrita con sub-permisos y modulo_perfiles, sidebar condicional
+
+### Build
+- npm run build -> 0 errores
+
+---
+
+## 02-07-2026
+
+### Hito: PROCESO FINANCIERO DE OTs COMPLETO
+
+### Backend (nuevos modelos + migraciones + seeder + controlador)
+- +1 modelo nuevo (total 18): OtEstado (catálogo Ingresada/Finalizada/Anulada)
+- +2 migraciones nuevas (total 30 cementerio): create_cementerio_ot_estados_table, add_ot_estado_id_to_cementerio_ot_table (reemplaza columna `estado` varchar por FK ot_estado_id, migra datos existentes: pendiente/en_proceso → Ingresada, finalizada → Finalizada, anulada → Anulada)
+- +1 seeder nuevo (total 12 cementerio): OtEstadoSeeder (insertOrIgnore 3 estados)
+- Ot model: fillable cambiado de `estado` a `ot_estado_id`, +relacion estado() (BelongsTo OtEstado)
+- OtController@store: `estado='pendiente'` → `ot_estado_id=OtEstado::where('nombre','Ingresada')->value('id')`
+- OtController@update: valida FK ot_estado_id + confirma_anulacion boolean; si es Anulada verifica cuotas pagadas y requiere confirmacion; anula todas las cuotas asociadas. Servicios y tipo_financiamiento removidos de update (read-only)
+- OtController@detalle: eager load `estado`, expone `tiene_cuotas_pagadas`
+- OtController@pagar: ambos flows (normal y mixto) llaman helper `verificarOtFinalizada()` que si todas las cuotas estan pagadas, cambia OT a Finalizada y agrega `ot_finalizada + numero_ot` al response
+- +1 ruta PUT: `/cementerio/ot/{ot}` (OtController@update, name: cementerio.ot.update)
+- routes/web.php: endpoint referencias-ot incluye `estados`, endpoint buscar-ot eager load `estado`
+
+### Frontend (EditarOtModal + SweetAlert fix + permisos edicion)
+- Nuevo componente: `EditarOtModal.tsx` (Dialog shadcn con campos editables: relacion, contactos, ubicacion, estado OT dinamico desde endpoint referencias-ot. Servicios y tipo_financiamiento read-only. Confirmacion SweetAlert2 al anular con alerta fuerte si hay cuotas pagadas. Envia confirma_anulacion: true al backend)
+- OtDetalleModal.tsx: estado badge ahora lee de `data.estado?.nombre` (objeto relacion). Nuevo SweetAlert de exito "Todas las cuotas de la OT N°xxx han sido pagadas!" al pagar ultima cuota. El Dialog se cierra antes de mostrar SweetAlert para evitar conflictos de z-index con Radix UI
+- BuscarOt.tsx: estado badge actualizado (Ingresada/Finalizada/Anulada). Boton Editar OT (PenSquare) en columna Acciones visible solo para Superadmin/Admin (canEdit = perfil === 'superadmin' || perfil === 'admin')
+- ModalOT.tsx: estadoBadge actualizado, raw.estado → raw.estado?.nombre
+- mockData.ts: estadosOt actualizado (Ingresada, Finalizada, Anulada)
+- EditarOtModal + OtDetalleModal: SweetAlert2 configurado con showCloseButton (X), allowOutsideClick, customClass.container='swal-high-z' (z-index: 100000) + Dialog cerrado antes de mostrar para garantizar funcionamiento de botones
+- app.css: nueva clase .swal-high-z { z-index: 100000 !important; }
+
+### Docs actualizados
+- memory-modulos.md: Cementerio actualizado con sistema estados OT, EditarOtModal, anulacion, finalizacion automatica, boton editar por perfil. Frontend components actualizado (+EditarOtModal, OtDetalleModal con tabs y SweetAlert)
+- memory-estructura.md: conteos actualizados (47 migraciones, 18 modelos, 12 seeders cementerio, 8 componentes cementerio). OtEstado en arbol de modelos. Seccion Confirmaciones actualizada con SweetAlert2 en Cementerio + swal-high-z
+- GhostState_ReAwakening.txt: esta entrada
+
+### Build
+- npm run build -> 0 errores
+
+---
+
+## 22-06-2026
+
+### Backend real (migraciones + modelos + controladores)
+- 8 migraciones creadas y ejecutadas: `cementerio_sexos`, `cementerio_estados_civiles`, `cementerio_fallecidos`, `cementerio_deudores`, `cementerio_relaciones`, `cementerio_financiamiento`, `cementerio_servicios`, `add_registrador_id`
+- 7 modelos bajo `App\Models\Cementerio\`: Fallecido (SoftDeletes, accessors, eventos), Sexo, EstadoCivil, Deudor ($incrementing=false), Relacion, Financiamiento, Servicio
+- 2 controladores: FallecidoController (CRUD + search + detalle JSON), DeudorController (CRUD paginado)
+- 2 requests: StoreFallecidoRequest, StoreDeudorRequest
+- 7 seeders idempotentes (firstOrCreate) para todos los catálogos
+
+### Frontend conectado a BD
+- RegistroFallecido.tsx: formulario con Inertia useForm POST/PUT, upload carta defunción (forceFormData), historial paginado desde BD
+- HistorialDeudores.tsx: página nueva con formulario + tabla paginada + modal edición PUT
+- IngresarOt.tsx: búsqueda fallecido con debounce 300ms + fetch a `/cementerio/buscar-fallecidos`, panel datos desde `/cementerio/fallecido/{id}/detalle`, selects desde BD (relaciones, financiamiento, servicios) via props Inertia
+- Catálogos mock reemplazados: `tiposResponsable` y `servicios` removidos de mockData.ts, ahora leen desde BD
+
+### Catálogos seedeados
+- Relaciones (7): Cónyuge, Hijo/a, Padre/Madre, Hermano/a, Otro Familiar, Amigo/a, Otro
+- Financiamiento (3): Servicio, Arriendo, Otros
+- Servicios (8): Sepultación, Exhumación, Reducción, Traslado, Cremación, Mantención, Apertura Nicho, Cierre Nicho
+
+### Sidebar / Navegación
+- "Gestión Mortuoria" colapsable con hijos "Registro Fallecido" e "Historial Deudores" (icono peso para Deudores)
+- Breadcrumbs y seccionDelay actualizados en IngresarOt
+
+### Docs actualizados
+- memory-modulos.md: sección Cementerio reescrita con backend real
+- memory-estructura.md: árbol actualizado con nuevos controllers, requests, models, migrations, seeders, rutas
+
+### Build
+- npm run build -> 0 errores
+
+---
+
+## 23-06-2026
+
+### Backend real (nuevos modelos + controladores + migraciones)
+- +8 migraciones nuevas (total 16): sectores, tipos_ubicacion, estados_ubicacion, ubicaciones, fallecido_ubicacion, formas_pago, ot, ot_servicios, + columna dv en deudores, registrador_id nullable
+- +7 modelos nuevos (total 14): Ot (RouteKeyName=numero_ot, 8 relaciones), Ubicacion (SoftDeletes, fallecidosActivos), FallecidoUbicacion (pivote), TipoUbicacion, Sector, EstadoUbicacion, FormaPago
+- +1 controlador: OtController (store con FallecidoUbicacion + detalle JSON + imprimir)
+- +1 request: StoreOtRequest
+- +4 seeders idempotentes (total 11): sectores, tipos_ubicacion, estados_ubicacion, formas_pago
+- Fallecido model: $appends nombre_completo, relacion ubicacionActual e historialUbicaciones
+- DeudorController: +search (JSON autocomplete por RUT o nombre)
+- FallecidoController: +buscarUbicacion (JSON endpoint para BuscarPorFallecido)
+
+### Frontend conectado a BD (migracion mock → real)
+- IngresarOt: Swal exito con 3 botones (Cerrar/Ver OT/Imprimir)
+- BuscarOt: ahora carga todas las OTs reales desde BD como props Inertia, DataTable con columnas reales, filtros client-side con SearchFilters cols=2, OtDetalleModal para detalle, Imprimir en nueva pestana
+- BuscarPorFallecido: ahora consulta real a `/cementerio/buscar-fallecido-ubicacion` + OtDetalleModal
+- ConsultarUbicaciones: ahora real con fetch JSON a `/cementerio/ubicaciones/consultar-data`, DataTable con badges, modal detalle con tabla fallecidos, OtDetalleModal y EditarFallecidoModal
+- Nuevo componente: OtDetalleModal (shadcn Dialog + fetch JSON al abrir, panel fusionado Servicios + Financiero)
+- Nuevo componente: EditarFallecidoModal (compartido entre RegistroFallecido y ConsultarUbicaciones)
+- RegistroFallecido refactorizado: ~170 lineas de edit dialog inline eliminadas, reemplazado por EditarFallecidoModal
+- Nueva pagina: ImprimirOt (standalone, sin AppLayout, `@page size: legal`, `window.print()` automatico)
+- SearchFilters: nueva prop `cols` (1-4) para controlar grid de filtros
+
+### Feature: Fechas sin timezone
+- Parseo manual `[y,m,d]` → `d-m-y` evitando `new Date().toLocaleDateString()` que depende del navegador
+
+### Catalogo de BD actualizado
+- Sexos (2): Masculino, Femenino
+- Estados Civiles (5): Soltero/a, Casado/a, Viudo/a, Divorciado/a, Conviviente Civil
+- Relaciones (7): Conyuge, Hijo/a, Padre/Madre, Hermano/a, Otro Familiar, Amigo/a, Otro
+- Financiamiento (3): Servicio, Arriendo, Otros
+- Servicios (8): Sepultacion, Exhumacion, Reduccion, Traslado, Cremacion, Mantencion, Apertura Nicho, Cierre Nicho
+- Sectores (5): Sector A, Sector B, Sector C, Sector D, Sector E
+- Tipos Ubicacion (4): Nicho, Boveda, Sepultura, Columbario
+- Estados Ubicacion (3): Disponible, Ocupado, Mantencion
+- Formas Pago (3): Contado, Transferencia, Cheque
+
+### Rutas nuevas
+- GET `/cementerio/ot/{ot}/detalle` — JSON con todas las relaciones
+- GET `/cementerio/ot/{ot}/imprimir` — pagina Inertia standalone
+- GET `/cementerio/buscar-deudores` — JSON autocomplete
+- GET `/cementerio/buscar-fallecido-ubicacion` — JSON ubicacion + ultima OT
+- GET `/cementerio/ubicaciones/consultar-data` — JSON filtrado
+
+### Sidebar actualizado
+- Reorganizado en 3 grupos colapsables: "Gestion Mortuoria" (Registro Fallecido, Historial Deudores), "Ordenes de Trabajo" (Ingresar OT, Buscar OT, Buscar por Fallecido), "Ubicaciones" (Consultar Ubicaciones). Documentos y Reportes directos.
+
+### Paginas migradas de mock a real
+- BuscarOt: ya no usa mockOrdenes ni mockOTCompleta
+- BuscarPorFallecido: ya no usa mockFallecidos, mockOrdenes ni ModalOT
+- ConsultarUbicaciones: ya no usa mockUbicaciones ni mockFallecidosUbicacion
+- ModalOT eliminado (reemplazado por OtDetalleModal)
+- Documentos y Reportes permanecen en mock (pendientes)
+
+### Docs actualizados
+- memory-modulos.md: seccion Cementerio reescrita con estado completo
+- memory-estructura.md: arbol actualizado con todos los nuevos modelos, controladores, migraciones, seeders, componentes
+
+### Build
+- npm run build -> 0 errores
+
+---
+
+## 24-06-2026
+
+### Backend real (nuevos modelos + migraciones + controladores)
+- +2 modelos nuevos (total 16): Cuota (belongsTo Ot, hasMany CuotaPagoMixto, belongsTo FormaPago), CuotaPagoMixto (belongsTo Cuota, belongsTo FormaPago)
+- +6 migrations (total 26): `cementerio_cuotas`, `add_metodo_pago_id_to_cementerio_cuotas`, `make_forma_pago_id_nullable_in_cementerio_ot`, `cementerio_cuotas_pagos_mixto`, `add_pago_mixto_to_cementerio_formas_pago`, `add_monto_recibido_to_cementerio_cuotas`
+- +5 metodos en OtController: cuotas (JSON), pagar (pago simple/mixto con transaccion DB), formasPago (JSON), comprobante (pagina Inertia standalone)
+- +1 metodo en FallecidoController: verificarRut (JSON endpoint)
+- +5 rutas nuevas (total 28): ot.cuotas, cuotas.pagar, formas-pago, cuotas.comprobante, fallecidos.verificar-rut
+- Generacion automatica de cuotas al crear OT: distribucion equitativa con residuo en primeras cuotas, vencimiento a 30d escalonado
+
+### Frontend conectado a BD (cuotas y pagos)
+- PagarCuotaModal: modal shadcn Dialog con dos modos de pago (simple: monto + metodo / mixto: tabla de metodos con montos individuales), fetch a `/cementerio/cuotas/{cuota}/pagar`
+- ComprobantePago: pagina standalone sin AppLayout, `@page size: legal`, `window.print()` automatico, datos OT + cuota + metodos de pago
+- ModalOT: modal de detalle de OT (usa mockOrdenes y mockOTCompleta de mockData.ts)
+- RegistroFallecido y EditarFallecidoModal: ahora importan `nacionalidades` desde `@/lib/nacionalidades`
+
+### Nuevo componente ui: radio-group.tsx (shadcn/ui)
+- Componente RadioGroup para seleccion exclusiva (usado en es_nn en RegistroFallecido)
+
+### Nuevos shared components
+- EmptyState: estado vacio con icono y mensaje
+- PageHeader: encabezado de pagina con titulo y descripcion
+
+### Nueva lib: nacionalidades.ts
+- Lista completa de nacionalidades para formularios (usada en RegistroFallecido y EditarFallecidoModal)
+
+### Mock data actualizado
+- ModalOT.tsx reintroduce uso de mockOrdenes y mockOTCompleta (solo referencia legacy a mock data de OT)
+- mockFallecidos: ya no se usa en ninguna pagina (Documentos usa mockFallecidosExpediente)
+
+### Docs actualizados
+- memory-estructura.md: conteos actualizados (28 rutas, 26 migrations, 16 modelos, etc.)
+- memory-modulos.md: nueva seccion "Cuotas y Pagos" con 12 items checklist
+
+### Build
+- npm run build -> 0 errores
+
+---
+
+## 25-06-2026
+
+### Backend real (nuevos modelo + migracion + controladores)
+- +1 modelo nuevo (total 17): DeudorContacto (contacto1/2: nombre, telefono, correo, FK unique a deudor)
+- +1 migracion (total 27): create_cementerio_deudores_contacto_table
+- Deudor model: +relacion contacto() (HasOne DeudorContacto)
+- DeudorController: search() incluye ->with('contacto') y mapea campos, store()/update() crea/actualiza DeudorContacto
+- OtController: detalle() e imprimir() ahora eager load 'deudor.contacto', store() ahora crea/actualiza DeudorContacto con primer_contacto_* y segundo_contacto_*
+- StoreDeudorRequest: +6 campos de contacto como nullable
+
+### Frontend (Contactos modulares + Confirmaciones)
+- IngresarOt.tsx: ConfirmDialog antes de guardar. Contacto1 ahora se llena desde d.contacto.nombre_contacto1 etc (no desde datos del deudor). Nuevos campos contacto2 mapeados. Sin boton "Generar Comprobante"
+- HistorialDeudores.tsx: edit dialog ahora incluye Contacto 1 y Contacto 2 con 3 campos cada uno desde BD. autoComplete=off en formulario. ConfirmDialog antes de guardar. Editar filas deshabilitado en tabla
+- OtDetalleModal.tsx: nuevo panel "Contactos" con grid-cols-3 (Nombre/Telefono/Correo para Contacto 1 y 2). Paneles Datos del Fallecido: grid-cols-4, Responsable Financiero: grid-cols-3, Ubicacion: grid-cols-4. Informacion Financiera sin cambios
+- ImprimirOt.tsx: mismo panel Contactos agregado + grids compactos (4/3/3/4). Badge de estado comentado para ahorrar espacio
+
+### Docs actualizados
+- memory-estructura.md: conteos actualizados (17 modelos, 27 migraciones), agregado DeudorContacto al arbol, descripciones actualizadas
+- memory-modulos.md: seccion Cementerio actualizada con DeudorContacto, OtDetalleModal, IngresarOt, HistorialDeudores, ImprimirOt
+
+### Build
+- npm run build -> 0 errores
+
+---
+
+## Proyecto: ORION-X HRMS
+
+### Stack
+- Laravel 13 + React 18 + Inertia.js v2 + Tailwind 3 + TypeScript 5
+- shadcn/ui (dialog, tabs, table, badge, button, select, input, card, checkbox, radio-group, toast)
+- lucide-react (iconos)
+- sweetalert2 (confirmaciones)
+- Toast system: `useToastContext().addToast({ title, description?, variant: 'default'|'destructive' })`
+
+### Convenciones
+- Paginas en `resources/js/Pages/Cementerio/` con `.layout = (page: ReactNode) => <AppLayout title="..." children={page} />`
+- Componentes reutilizables en `resources/js/Components/shared/` y `resources/js/Components/forms/`
+- Componentes especificos en `resources/js/Components/cementerio/`
+- Datos mock en `resources/js/lib/mockData.ts`
+- Animacion de pagina: `<div className="animate-fade-in-up space-y-6">`
+- Titulos: `text-2xl font-semibold tracking-tight`
+- Subtitulos: `mt-1 text-sm text-muted-foreground`
+- Cards: `rounded-lg border p-4`
+- Breadcrumbs ultimo item sin href (pagina actual)
+- cn() desde `@/lib/utils`
+- Sidebar permiso guard: `{permisos.includes('cementerio') &&` (items individuales chequean sub-permiso `cementerio-*` con backward compat)
+
+---
+
+## Modulo Cementerio - Arquitectura
+
+### Sidebar (AppLayout.tsx) — 3 grupos colapsables
+```
+Cementerio (Cross)
++-- Gestion Mortuoria (▼)
+|   +-- Registro de Fallecido (Save)
+|   +-- Historial de Deudores (Weight)
++-- Ordenes de Trabajo (▼)
+|   +-- Ingresar OT (Plus)
+|   +-- Buscar OT (Search)
+|   +-- Buscar por Fallecido (UserSearch)
++-- Ubicaciones (▼)
+|   +-- Consultar Ubicaciones (List)
++-- Documentos (FileStack)
++-- Reportes (BarChart3)
+```
+
+### Rutas (web.php) — ~29 rutas (+1 modulo-perfiles fuera del grupo cementerio)
+Ademas, fuera del grupo cementerio:
+```
+PATCH  /rrhh/{user}/modulo-perfiles             → RrhhUserController@updateModuloPerfiles
+```
+```
+GET    /cementerio/registro-fallecido            → FallecidoController@index
+GET    /cementerio/registro-fallecido/{fallecido} → FallecidoController@show
+POST   /cementerio/registro-fallecido            → FallecidoController@store
+PUT    /cementerio/registro-fallecido/{fallecido} → FallecidoController@update
+DELETE /cementerio/registro-fallecido/{fallecido} → FallecidoController@destroy
+GET    /cementerio/buscar-fallecidos              → FallecidoController@search
+GET    /cementerio/fallecido/{fallecido}/detalle   → FallecidoController@detalle
+GET    /cementerio/verificar-rut                  → FallecidoController@verificarRut
+GET    /cementerio/buscar-fallecido-ubicacion      → FallecidoController@buscarUbicacion
+GET    /cementerio/historial-deudores             → DeudorController@index
+POST   /cementerio/historial-deudores             → DeudorController@store
+PUT    /cementerio/historial-deudores/{deudor}    → DeudorController@update
+DELETE /cementerio/historial-deudores/{deudor}    → DeudorController@destroy
+GET    /cementerio/buscar-deudores                → DeudorController@search
+GET    /cementerio/ingresar-ot                    → inertia() + catalogs
+POST   /cementerio/ingresar-ot                    → OtController@store
+GET    /cementerio/ot/{ot}/detalle                → OtController@detalle
+GET    /cementerio/ot/{ot}/cuotas                 → OtController@cuotas
+PUT    /cementerio/cuotas/{cuota}/pagar           → OtController@pagar
+GET    /cementerio/ot/{ot}/imprimir               → OtController@imprimir
+GET    /cementerio/formas-pago                    → OtController@formasPago
+GET    /cementerio/cuotas/{cuota}/comprobante     → OtController@comprobante
+GET    /cementerio/buscar-ot                      → inertia() + OTs reales
+GET    /cementerio/buscar-por-fallecido           → inertia()
+GET    /cementerio/consultar-ubicaciones          → inertia() + catalogs
+GET    /cementerio/ubicaciones/consultar-data     → Closure JSON
+GET    /cementerio/documentos                     → inertia() [mock]
+GET    /cementerio/reportes                       → inertia() [mock]
+```
+
+Todas bajo `Route::middleware(['auth', 'verified'])->prefix('cementerio')->name('cementerio.')->group(...)`.
+
+---
+
+## Paginas (9 reales + 2 mock) — 11 total
+
+### 1. RegistroFallecido.tsx — REAL
+- Formulario: nombres, apellidos, RUT, fecha fallecimiento, sexo, estado civil, nacionalidad, causa, observaciones
+- Datos desde BD (sexos, estadosCiviles via props Inertia)
+- Nacionalidades desde `@/lib/nacionalidades`
+- CRUD completo (POST crear, PUT editar via EditarFallecidoModal compartido, DELETE eliminar)
+- Validacion inline con estado por campo
+- Boton Guardar -> POST con redirect -> toast success
+- Boton Limpiar -> ConfirmDialog -> limpia todo
+- Buscador por RUT/nombre con fetch JSON a `/cementerio/buscar-fallecidos`/`/cementerio/verificar-rut`
+
+### 2. HistorialDeudores.tsx — REAL
+- Formulario crear deudor (RUT, nombre, direccion, telefono, email, relacion con fallecido)
+- Tabla paginada con todos los deudores desde BD
+- Modal edicion PUT
+- Botones Guardar/Cancelar/Limpiar
+
+### 3. IngresarOt.tsx — REAL
+- Wizard 3 pasos con sidebar stepper numerado
+- Paso 1: busqueda fallecido con debounce 300ms + fetch JSON, seleccion solicitante/responsable financiero desde BD
+- Paso 2: servicios desde BD (select + cantidad), ubicacion (sector/patio/codigo), forma de pago + numero de cuotas
+- Paso 3: resumen financiero (tabla servicios, subtotal, descuento, IVA total, forma pago)
+- Validacion por paso antes de avanzar
+- Guardar -> POST -> Swal con 3 botones (Cerrar/Ver OT/Imprimir)
+- Genera automaticamente cuotas segun forma de pago y numero de cuotas
+
+### 4. BuscarOt.tsx — REAL
+- Recibe todas las OTs como props Inertia (con relaciones)
+- SearchFilters cols=2: RUT/Fallecido, N° OT, Estado (select), Servicio (select), Fecha inicio-fin
+- DataTable: N° OT, RUT/Nombre Fallecido, RUT/Nombre Deudor, Servicios, Total ($), Fecha (DD-MM-YYYY), Estado (Badge), Accion (Ver -> OtDetalleModal, Imprimir -> nueva pestana)
+- OtDetalleModal con fetch JSON a `/cementerio/ot/{numero}/detalle`
+
+### 5. BuscarPorFallecido.tsx — REAL
+- Buscador por RUT o nombre con fetch JSON a `/cementerio/buscar-fallecido-ubicacion`
+- Resultados: datos fallecido + ubicacion actual + OT mas reciente
+- OtDetalleModal para ver detalle de OT
+
+### 6. ConsultarUbicaciones.tsx — REAL
+- Catalogo tipos/sectores/estados via props Inertia
+- Fetch JSON a `/cementerio/ubicaciones/consultar-data` con filtros tipo/sector/estado
+- DataTable: Codigo, Tipo, Sector, Estado (Badge coloreado), Ocupacion (texto)
+- onRowClick -> modal detalle: datos ubicacion + tabla fallecidos con acciones
+- "Ver OT" -> OtDetalleModal | "Ver Fallecido" -> EditarFallecidoModal
+
+### 7. ImprimirOt.tsx — REAL
+- Pagina standalone (sin AppLayout, con `layout = null`)
+- `@page { size: legal; margin: 0.75cm }` en estilo global
+- Datos: N° OT, fecha, fallecido, deudor, servicios (tabla), financiero (subtotal/IVA/total)
+- `window.print()` automatico al montar
+
+### 8. ComprobantePago.tsx — REAL (nueva)
+- Pagina standalone (sin AppLayout, con `layout = null`)
+- `@page { size: legal; margin: 0.75cm }` en estilo global
+- Datos: N° OT, fallecido, deudor, cuota (numero, monto, estado, metodo pago, fecha pago)
+- Pagos mixtos: tabla con metodos y montos desglosados
+- `window.print()` automatico al montar
+
+### 9. Documentos.tsx — MOCK
+- DataTable: Fallecido, RUT, Registro, Ubicacion, Documentos (icono + count), Accion (Ver detalle)
+- SearchFilters por nombre/RUT
+- ExpedienteModal con 3 tabs:
+  - **Informacion**: grid datos fallecido (CardSection)
+  - **Documentos**: tarjetas con icono FileText, fecha, origen, boton "Ver PDF" + "Ver expediente completo"
+  - **Movimientos**: timeline vertical con dots de colores (verde=ingreso, azul=OT, ambar=actualizacion)
+
+### 10. Reportes.tsx — MOCK
+- Tabs: Ingresos / Cuotas por vencer
+- **Ingresos**: DataTable mock + ModalDetalleIngreso (info financiera + historial pagos)
+- **Cuotas por vencer**: DataTable mock + ModalDetalleCuota (proximas + historial)
+
+---
+
+## Componentes creados
+
+### shared/
+| Componente | Props | Uso |
+|---|---|---|
+| Breadcrumbs | `items: { label, href? }[]` | Navegacion en paginas |
+| CardSection | `title, description?, icon?, iconColor?, children` | Secciones con icono |
+| ActionButtons | `onSave?, onClear?, onCancel?, loading?` | Barra de acciones |
+| SearchFilters | `onSearch, onClear, children, cols?` | Contenedor de filtros (cols=1-4, default 1) |
+| DataTable<T> | `columns, data, pagination?, onSearch?, onRowClick?, keyExtractor` | Tabla generica |
+| EmptyState | `icon?, title, description?` | Estado vacio con icono y mensaje |
+| PageHeader | `title, description?` | Encabezado de pagina con titulo y descripcion |
+
+### forms/
+| Componente | Props |
+|---|---|
+| FormInput | `label, value, onChange, error?, placeholder?, type?` |
+| FormSelect | `label, value, onValueChange, options, error?, placeholder?` |
+| FormTextarea | `label, value, onChange, error?, placeholder?` |
+
+### cementerio/
+| Componente | Props | Uso |
+|---|---|---|
+| OtDetalleModal | `open, onOpenChange, numeroOt` | Fetch JSON a `/cementerio/ot/{numero}/detalle`, panel fusionado Servicios+Financiero |
+| EditarFallecidoModal | `open, onOpenChange, fallecido, sexos, estadosCiviles, onSuccess?` | Compartido entre RegistroFallecido y ConsultarUbicaciones, PUT con Inertia router.put |
+| PagarCuotaModal | `open, onOpenChange, cuota, onSuccess?` | Pago simple (monto + metodo) o mixto (tabla metodos/montos), fetch PUT a `/cementerio/cuotas/{cuota}/pagar` |
+| ModalOT | `open, onOpenChange, numeroOt` | [mock] Detalle de OT con datos mock (mockOrdenes + mockOTCompleta) |
+| ExpedienteModal | `open, onOpenChange, fallecido` | [mock] 3 tabs |
+| ModalDetalleIngreso | `open, onOpenChange, ingreso` | [mock] info financiera + historial |
+| ModalDetalleCuota | `open, onOpenChange, cuota` | [mock] proximas + historial |
+
+---
+
+## Datos mock (mockData.ts) — en desuso parcial
+
+| Export | Cantidad | Estado |
+|---|---|---|
+| mockFallecidos | 5 | **Ya no usado** (Documentos usa mockFallecidosExpediente) |
+| mockOrdenes | 8 | **Aun usado en ModalOT** (legacy, no en BuscarOt/BuscarPorFallecido) |
+| mockDetalleServicios | 2 | **Ya no usado** |
+| mockOTCompleta | 1 | **Aun usado en ModalOT** (legacy, no en BuscarOt/BuscarPorFallecido) |
+| mockUbicaciones | 8 | **Ya no usado** (ConsultarUbicaciones migrado a BD) |
+| mockFallecidosUbicacion | 5 | **Ya no usado** |
+| mockFallecidosExpediente | 5 | Tabla Documentos [mock] |
+| mockDocumentos | 20 | Documentos por fallecido [mock] |
+| mockMovimientos | 18 | Timeline movimientos [mock] |
+| (select arrays) | varios | **Ya no usados** (catalogos desde BD via props Inertia) |
+
+---
+
+## Decisiones de diseno
+- **Cross** como icono de Cementerio (no existe Tombstone en lucide-react)
+- **Save** (disquette) para Registro de Fallecido — connotacion de guardar datos
+- **ClipboardPen** para Orden de Trabajo — documento editable
+- **UserSearch** para Buscar por Fallecido — busqueda de persona
+- **FileStack** para Documentos — expediente digital
+- **Backend real completo** — 18 modelos, 3 controladores, 3 requests, 11 seeders, 28 migraciones, 29 rutas. Unicas paginas mock pendientes: Documentos y Reportes
+- **Permiso `cementerio`** — controla visibilidad del sidebar completo. Sub-permisos `cementerio-*` controlan items individuales con backward compat
+- **OtDetalleModal con fetch JSON** — en vez de pasar datos como props, se fetchea al abrir el modal, evita duplicar datos de OT en memoria
+- **EditarFallecidoModal compartido** — mismo componente en RegistroFallecido y ConsultarUbicaciones para mantener consistencia al editar
+- **ConsultarUbicaciones usa fetch JSON** — en vez de props Inertia, para evitar recarga completa de pagina al aplicar filtros
+- **BuscarOt recibe OTs como props** — todas las OTs al cargar pagina, filtros client-side (suficiente para el volumen esperado)
+- **ImprimirOt standalone** — sin AppLayout, con `@page legal`, `window.print()` automatico, evita imprimir sidebar/navbar
+- **Fechas DD-MM-YYYY sin timezone** — parseo manual `[y,m,d]` → `d-m-y` en vez de `new Date()` que depende del navegador
+- **ExpedienteModal propio** — complejidad alta (3 tabs, timeline), pendiente de conectar a BD
+- **Cuotas generadas automaticamente** — al crear OT con forma_pago y numero_cuotas, se distribuye el total equitativamente (residuo en primeras cuotas), vencimiento a 30d escalonado
+- **Pago simple vs mixto** — PagarCuotaModal soporta pago simple (un metodo) o mixto (varios metodos en una cuota) via transaccion DB
+- **ComprobantePago standalone** — misma estrategia que ImprimirOt: sin AppLayout, `@page legal`, `window.print()` automatico, evita imprimir sidebar
+- **nacionalidades.ts separado** — archivo propio en `lib/` en vez de mockData.ts, usado compartidamente por RegistroFallecido y EditarFallecidoModal
+- **verificarRut endpoint** — JSON simple que evita duplicados de RUT en el formulario de registro de fallecidos
+
+---
+
+## Critical Context
+- **Encoding:** Solo el `edit` tool o `[System.IO.File]::WriteAllText(path, content, [System.Text.UTF8Encoding]::new($false))` son seguros. PowerShell `Set-Content` escribe UTF-16 corrompiendo tildes/Ñ.
+- **Permisos:** `permisos.includes('cementerio')` controla sidebar completo. Sub-permisos `cementerio-*` controlan items individuales. Backward compat: si tiene `cementerio` pero ningun `cementerio-*`, se muestran todos.
+- **Toast:** `useToastContext().addToast({ title, description?, variant })`.
+- **ConfirmDialog:** `Swal.fire({ title, text, icon, showCancelButton, confirmButtonColor, confirmButtonText })`.
+- **DataTable onRowClick:** usado en ConsultarUbicaciones (detalle ubicacion).
+- **Iconos:** Cross (Cementerio), Save (Registro), Weight (Deudores), ClipboardPen (OT), UserSearch (Buscar Fallecido), MapPin (Ubicaciones), List (Consultar), FileStack (Documentos), BarChart3 (Reportes), Plus/Search (subitems).
+- **Fechas:** Parseo manual `[y,m,d]` → `d-m-y` en todas las paginas, evitar `new Date()`.
+- **Impresion:** Pagina standalone sin AppLayout, `@page { size: legal; margin: 0.75cm }`, `window.print()` automatico.
+- **OtDetalleModal:** Fetch JSON a `/cementerio/ot/{numero}/detalle` al abrirse, datos no persistentes en padre.
+- **EditarFallecidoModal:** PUT via Inertia `router.put`, callback `onSuccess` opcional para refrescar lista padre.
+- **PagarCuotaModal:** Pago simple (monto + metodo_pago_id) o mixto (array pagos_mixtos con metodo_pago_id + monto) via transaccion DB. Estados: pendiente → parcial → pagada.
+- **ComprobantePago:** Pagina standalone sin AppLayout, `@page size: legal`, `window.print()` automatico. Datos OT + cuota + metodos de pago (mixtos desglosados).
+- **verificarRut:** JSON endpoint `/cementerio/verificar-rut?rut=...` retorna `{exists: bool}` para evitar duplicados en registro.
+- **nacionalidades.ts:** Archivo separado en `lib/nacionalidades.ts`, importado en RegistroFallecido y EditarFallecidoModal.
+- **ModalOT:** Modal legacy con mockOrdenes/mockOTCompleta (convive con OtDetalleModal que usa BD real).
+
+---
+
+## Proximos pasos candidatos
+1. ~~Integrar backend~~ ✅ Hecho (22-06-2026)
+2. ~~Migrar BuscarOt a BD real~~ ✅ Hecho (23-06-2026)
+3. ~~Migrar BuscarPorFallecido a BD real~~ ✅ Hecho (23-06-2026)
+4. ~~Migrar ConsultarUbicaciones a BD real~~ ✅ Hecho (23-06-2026)
+5. ~~Crear EditarFallecidoModal compartido~~ ✅ Hecho (23-06-2026)
+6. ~~Crear OtDetalleModal (reemplaza ModalOT)~~ ✅ Hecho (23-06-2026)
+7. ~~Sistema de cuotas y pagos~~ ✅ Hecho (24-06-2026)
+8. ~~Comprobante de pago~~ ✅ Hecho (24-06-2026)
+9. Subida real de archivos PDF en Documentos
+10. ~~Autenticacion por permisos granulares (sub-permisos cementerio-*)~~ ✅ Hecho (01-07-2026)
+11. Paginacion real server-side en DataTable
+12. Filtros avanzados server-side
+13. Exportar data a Excel/PDF
+14. Modulo de arriendos/renovaciones
+15. Reportes estadisticos del cementerio
+16. ~~Conectar Reportes a BD real (cuotasPorVencer)~~ ✅ Hecho (01-07-2026)

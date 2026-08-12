@@ -88,6 +88,10 @@ orion-x/
 │   │   │   ├── SolicitudesController.php  ─ Bandeja de Solicitudes (aceptar/rechazar)
 │   │   │   └── Rrhh/
 │   │   │       └── RrhhUserController.php ─ RRHH: CRUD usuarios + OTT + permisos + vacaciones
+│   │   │   └── Cementerio/
+│   │   │       ├── FallecidoController.php ─ CRUD + search + detalle JSON + buscarUbicacion + verificarRut
+│   │   │       ├── DeudorController.php    ─ CRUD con paginación + search JSON (autocomplete, incluye contacto)
+│   │   │       └── OtController.php        ─ store, detalle JSON, cuotas, pagar, formasPago, imprimir, comprobante
 │   │   └── Requests/
 │   │       ├── Auth/LoginRequest.php
 │   │       ├── ProfileUpdateRequest.php
@@ -102,7 +106,10 @@ orion-x/
 │   │       └── Vacacion/
 │   │           ├── StoreVacacionRequest.php      ─ Validación solicitud vacaciones
 │   │           └── StoreVacacionHistoricoRequest.php ─ Validación registro histórico
-│   ├── Models/
+│   │       └── Cementerio/
+│   │           ├── StoreFallecidoRequest.php     ─ Validación crear/editar fallecido
+│   │           ├── StoreDeudorRequest.php        ─ Validación crear/editar deudor + contacto
+│   │           └── StoreOtRequest.php            ─ Validación OT: fallecido, deudor, servicios
 │   │   ├── User.php                       ─ Usuario completo ($fillable, relaciones, accessors)
 │   │   ├── Sexo.php
 │   │   ├── Nacionalidad.php
@@ -119,7 +126,27 @@ orion-x/
 │   │   ├── EstadoVacacione.php           ─ Estados vacaciones (4)
 │   │   ├── Vacacione.php                 ─ Vacaciones (solicitud única)
 │   │   ├── VacacionPeriodo.php           ─ Desglose por período de cada solicitud
-│   │   └── PermisoSistema.php            ─ Permisos del sistema (rrhh, solicitudes, etc.)
+│   │   ├── PermisoSistema.php            ─ Permisos del sistema (rrhh, solicitudes, cementerio-*, etc.)
+│   │   ├── UserModuloPerfil.php          ─ Perfiles por módulo (superadmin/admin/usuario/auditor)
+│   │   └── Cementerio/                   ─ Módulo Cementerio (17 modelos)
+│   │       ├── Fallecido.php             ─ SoftDeletes, $appends nombre_completo, accessors, ubicacionActual, historialUbicaciones
+│   │       ├── FallecidoUbicacion.php    ─ Pivote fallecido↔ubicacion (fecha_asignacion, activo)
+│   │       ├── Ubicacion.php             ─ SoftDeletes, relaciones tipoUbicacion/sector/estadoUbicacion/fallecidosActivos
+│   │       ├── TipoUbicacion.php         ─ Catálogo tipos de ubicación
+│   │       ├── Sector.php                ─ Catálogo sectores
+│   │       ├── EstadoUbicacion.php       ─ Catálogo estados de ubicación
+│   │       ├── Ot.php                    ─ RouteKeyName=numero_ot, 9 relaciones (incl. cuotas)
+│   │       ├── Deudor.php                ─ $incrementing=false, $primaryKey='rut', relación contacto()
+│   │       ├── DeudorContacto.php         ─ Contactos del deudor (contacto1/2: nombre, teléfono, correo)
+│   │       ├── Relacion.php              ─ Catálogo relaciones
+│   │       ├── Financiamiento.php        ─ Catálogo financiamiento
+│   │       ├── Servicio.php              ─ Catálogo servicios
+│   │       ├── FormaPago.php             ─ Catálogo formas de pago
+│   │       ├── Sexo.php                  ─ Catálogo sexos
+│   │       ├── EstadoCivil.php           ─ Catálogo estados civiles
+│   │       ├── Cuota.php                 ─ Cuotas de OT (monto, fechas, estado pago). $casts: fecha_vencimiento => date
+│   │       ├── CuotaPagoMixto.php        ─ Pagos mixtos por cuota (múltiples métodos)
+│   │       └── OtEstado.php              ─ Catálogo estados de OT (Ingresada, Finalizada, Anulada)
 │   ├── Notifications/
 │   │   ├── PermisoCreada.php            ─ Notif. al crear permiso
 │   │   ├── PermisoAceptada.php          ─ Notif. al aceptar permiso
@@ -154,33 +181,83 @@ orion-x/
 │   │   ├── 0001_01_01_000001_create_cache_table.php
 │   │   ├── 0001_01_01_000002_create_jobs_table.php
 │   │   ├── 2025_01_01_000001_create_catalog_tables.php
+│   │   ├── 2026_05_16_000003_create_ott_tables.php              ─ Tablas OTT (órdenes trabajo RRHH)
 │   │   ├── 2026_05_16_010532_add_foto_perfil_to_users_table.php
 │   │   ├── 2026_05_16_000004_create_permisos_tables.php
 │   │   ├── 2026_05_16_140345_add_jornada_to_permisos.php
-│   │   ├── 2026_05_16_xxxxxx_create_permiso_detalles_table.php
-│   │   ├── 2026_05_16_xxxxxx_create_estados_vacaciones_table.php
-│   │   ├── 2026_05_16_xxxxxx_create_vacaciones_table.php
+│   │   ├── 2026_05_16_141347_create_permiso_detalles_table.php
+│   │   ├── 2026_05_16_150448_create_estados_vacaciones_table.php
+│   │   ├── 2026_05_16_150514_create_vacaciones_table.php
 │   │   ├── 2026_05_16_153403_make_fechas_nullable_in_vacaciones.php
 │   │   ├── 2026_05_16_160121_create_vacacion_periodos_table.php
 │   │   ├── 2026_05_16_160838_drop_periodo_numero_from_vacaciones.php
 │   │   ├── 2026_05_16_164059_create_permisos_sistema_table.php
-│   │   └── 2026_05_16_164100_create_user_permiso_sistema_table.php
+│   │   ├── 2026_05_16_164100_create_user_permiso_sistema_table.php
+│   │   ├── 2026_05_26_000001_create_ott_files_table.php         ─ Archivos adjuntos a OTT (S3)
+│   │   ├── 2026_06_22_160001_create_cementerio_sexos_table.php
+│   │   ├── 2026_06_22_160002_create_cementerio_estados_civiles_table.php
+│   │   ├── 2026_06_22_160003_create_cementerio_fallecidos_table.php
+│   │   ├── 2026_06_22_204633_create_cementerio_deudores_table.php
+│   │   ├── 2026_06_22_204644_add_registrador_id_to_cementerio_fallecidos_table.php
+│   │   ├── 2026_06_22_212557_create_cementerio_relaciones_table.php
+│   │   ├── 2026_06_22_213047_create_cementerio_financiamiento_table.php
+│   │   ├── 2026_06_22_213448_create_cementerio_servicios_table.php
+│   │   ├── 2026_06_23_000001_create_cementerio_sectores_table.php
+│   │   ├── 2026_06_23_000002_create_cementerio_tipos_ubicacion_table.php
+│   │   ├── 2026_06_23_000003_create_cementerio_estados_ubicacion_table.php
+│   │   ├── 2026_06_23_000004_create_cementerio_ubicaciones_table.php
+│   │   ├── 2026_06_23_000005_create_cementerio_fallecido_ubicacion_table.php
+│   │   ├── 2026_06_23_000006_add_valor_servicio_to_cementerio_servicios.php
+│   │   ├── 2026_06_23_000007_add_valor_arriendo_to_cementerio_financiamiento.php
+│   │   ├── 2026_06_23_000008_create_cementerio_formas_pago_table.php
+│   │   ├── 2026_06_23_000009_create_cementerio_ot_table.php
+│   │   ├── 2026_06_23_000010_create_cementerio_ot_servicios_table.php
+│   │   ├── 2026_06_23_000011_add_dv_to_cementerio_deudores.php
+│   │   ├── 2026_06_23_000012_make_registrador_id_nullable_in_cementerio_deudores.php
+│   │   ├── 2026_06_23_000013_create_cementerio_cuotas_table.php           ─ Cuotas de OT
+│   │   ├── 2026_06_23_000014_add_metodo_pago_id_to_cementerio_cuotas.php  ─ Método de pago en cuotas
+│   │   ├── 2026_06_23_000015_make_forma_pago_id_nullable_in_cementerio_ot.php ─ forma_pago nullable en OT
+│   │   ├── 2026_06_24_204638_create_cementerio_cuotas_pagos_mixto_table.php   ─ Pagos mixtos por cuota
+│   │   ├── 2026_06_24_204702_add_pago_mixto_to_cementerio_formas_pago.php     ─ Flag pago mixto en formas_pago
+│   │   ├── 2026_06_24_210121_add_monto_recibido_to_cementerio_cuotas.php      ─ Monto recibido en cuotas
+│   │   ├── 2026_06_25_000001_create_cementerio_deudores_contacto_table.php ─ Contactos del deudor (contacto1/2)
+│   │   ├── 2026_07_01_204805_create_user_modulo_perfil_table.php          ─ Perfiles por módulo (modulo_slug, perfil_slug)
+│   │   ├── 2026_07_02_000001_create_cementerio_ot_estados_table.php      ─ Catálogo estados de OT (Ingresada, Finalizada, Anulada)
+│   │   └── 2026_07_02_000002_add_ot_estado_id_to_cementerio_ot_table.php ─ Reemplaza estado varchar por FK ot_estado_id, migra datos
 │   └── seeders/
 │       ├── DatabaseSeeder.php
 │       ├── AdminUserSeeder.php
+│       ├── TipoOrdenSeeder.php             ─ Tipos de orden de trabajo (firstOrCreate)
+│       ├── TipoContratoSeeder.php          ─ Tipos de contrato (firstOrCreate)
+│       ├── CentroCostoSeeder.php           ─ Centros de costo (firstOrCreate)
+│       ├── EstadoOttSeeder.php             ─ Estados de OTT (firstOrCreate)
 │       ├── SexoSeeder.php
 │       ├── NacionalidadSeeder.php
 │       ├── ProfesionSeeder.php
 │       ├── PrevisionSeeder.php
 │       ├── AfpSeeder.php
 │       ├── EstadoSeeder.php
-│       ├── PermisoSistemaSeeder.php        ─ 2 permisos (rrhh, solicitudes) (firstOrCreate)
+│       ├── PermisoSistemaSeeder.php        ─ 10 permisos (rrhh, solicitudes, cementerio + 7 cementerio-*) (firstOrCreate)
 │       ├── TipoPermisoSeeder.php         ─ 7 tipos (firstOrCreate)
 │       ├── EstadoPermisoSeeder.php       ─ 3 estados (firstOrCreate)
-│       └── EstadoVacacionSeeder.php      ─ 4 estados (firstOrCreate)
+│       ├── EstadoVacacionSeeder.php      ─ 4 estados (firstOrCreate)
+│       ├── CementerioSexosSeeder.php            ─ 2 registros (firstOrCreate)
+│       ├── CementerioEstadosCivilesSeeder.php   ─ 4 registros (firstOrCreate)
+│       ├── CementerioFallecidosSeeder.php
+│       ├── CementerioDeudoresSeeder.php
+│       ├── CementerioRelacionesSeeder.php       ─ 7 registros (firstOrCreate)
+│       ├── CementerioFinanciamientoSeeder.php   ─ 3 registros (firstOrCreate)
+│       ├── CementerioServiciosSeeder.php        ─ 8 registros (firstOrCreate)
+│       ├── CementerioSectoresSeeder.php         ─ Sectores (firstOrCreate)
+│       ├── CementerioTiposUbicacionSeeder.php   ─ Tipos de ubicación (firstOrCreate)
+│       ├── CementerioEstadosUbicacionSeeder.php ─ Estados de ubicación (firstOrCreate)
+│       ├── CementerioFormasPagoSeeder.php       ─ Formas de pago (firstOrCreate)
+│       └── OtEstadoSeeder.php                  ─ Estados de OT: Ingresada, Finalizada, Anulada
 ├── docs/                                ─ Documentación del proyecto
 │   ├── memory-estructura.md
-│   └── memory-modulos.md
+│   ├── memory-modulos.md
+│   ├── GhostState_ReAwakening_cementerio.txt
+│   └── GhostState_ReAwakening_asistencia.txt
 ├── public/
 │   ├── build/                           ─ Assets compilados por Vite
 │   └── storage/ → storage/app/public    ─ Symlink para archivos subidos
@@ -190,35 +267,44 @@ orion-x/
 │   ├── js/
 │   │   ├── app.tsx                      ─ Entry point Inertia + React
 │   │   ├── Components/
-│   │   │   ├── ui/                      ─ shadcn/ui components (12: button, card, input, label, dialog, dropdown-menu, select, badge, table, tabs, checkbox, toast)
-│   │   │   ├── ConfirmDialog.tsx        ─ Diálogo de confirmación (sin portal)
-│   │   │   └── ToastProvider.tsx        ─ Provider de notificaciones toast
+│   │   │   ├── ui/                      ─ shadcn/ui components (13: button, card, input, label, dialog, dropdown-menu, select, badge, table, tabs, checkbox, radio-group, toast)
+│   │   │   ├── ConfirmDialog.tsx        ─ Diálogo de confirmación (sin portal, className prop)
+│   │   │   ├── ToastProvider.tsx        ─ Provider de notificaciones toast
+│   │   │   ├── cementerio/              ─ 8 componentes (OtDetalleModal, EditarFallecidoModal, EditarOtModal, ExpedienteModal, ModalDetalleIngreso, ModalDetalleCuota, PagarCuotaModal, ModalOT)
+│   │   │   ├── shared/                  ─ 7 componentes (Breadcrumbs, CardSection, ActionButtons, SearchFilters, DataTable, EmptyState, PageHeader)
+│   │   │   └── forms/                   ─ 3 componentes (FormInput, FormSelect, FormTextarea)
 │   │   ├── Layouts/
-│   │   │   ├── AppLayout.tsx            ─ Layout principal (sidebar azul + header)
+│   │   │   ├── AppLayout.tsx            ─ Layout principal (sidebar azul + header + nav condicional por sub-permiso)
 │   │   │   └── GuestLayout.tsx          ─ Layout público (shadcn/ui)
 │   │   ├── lib/
-│   │   │   └── utils.ts                ─ cn(), formatDate(), etc.
+│   │   │   ├── utils.ts                ─ cn(), formatDate(), etc.
+│   │   │   ├── mockData.ts             ─ Datos mock centralizados (~550 líneas)
+│   │   │   ├── asistenciaMockData.ts   ─ Datos mock del módulo Asistencia (~1,690 líneas, 60+ exports)
+│   │   │   └── nacionalidades.ts       ─ Lista de nacionalidades para formularios
 │   │   ├── Pages/
 │   │   │   ├── Auth/                    ─ 6 páginas de autenticación (shadcn/ui)
 │   │   │   ├── Dashboard/Index.tsx      ─ Saludo personalizado
 │   │   │   ├── Portal/Index.tsx          ─ Mi Espacio (3 tabs: Permisos, Vacaciones, Órdenes)
 │   │   │   ├── Profile/                 ─ Perfil con foto + partials (shadcn/ui + AppLayout)
 │   │   │   │   └── Partials/            ─ 2 partials (información + contraseña)
-│   │   │   ├── Rrhh/                    ─ RRHH: Index, Create, Edit (7 tabs)
-│   │   │   └── Solicitudes/             ─ Bandeja de Solicitudes
-│   │   │       └── Index.tsx            ─ 2 cards (Permisos/Vacaciones pendientes)
+│   │   │   ├── Rrhh/                    ─ RRHH: Index, Create, Edit (7 tabs, Sistema con sub-tabs Accesos/Acciones)
+│   │   │   ├── Solicitudes/             ─ Bandeja de Solicitudes
+│   │   │   │   └── Index.tsx            ─ 2 cards (Permisos/Vacaciones pendientes)
+│   │   │   ├── Cementerio/              ─ 10 páginas (RegistroFallecido, HistorialDeudores, IngresarOt, BuscarOt, BuscarPorFallecido, ConsultarUbicaciones, ImprimirOt, ComprobantePago, Documentos, Reportes)
+│   │   │   └── Asistencia/              ─ 8 páginas (Dashboard/Index, Reportes/PorFuncionario, Reportes/PorUnidad + Diario/Mensual/IntegrantesModal/VerAsistenciaModal, Horarios/Index)
 │   │   ├── stores/
 │   │   │   └── sidebarStore.ts          ─ Estado del sidebar (colapsado)
 │   │   └── types/
 │   │       ├── global.d.ts              ─ Tipos globales (Ziggy, Inertia)
 │   │       ├── index.ts                 ─ Interfaces del proyecto (User, PageProps, CatalogItem)
+│   │       ├── asistencia.ts            ─ Tipos del módulo Asistencia (indicadores, funcionarios, unidades, diario, mensual, horarios)
 │   │       └── vite-env.d.ts            ─ Tipos de Vite
 │   └── views/
 │       └── app.blade.php                ─ Layout Blade raíz (Outfit + DM Sans)
 ├── routes/
 │   ├── auth.php                         ─ Rutas de autenticación (Breeze)
 │   ├── console.php
-│   └── web.php                          ─ Dashboard + perfil + RRHH + Portal + Solicitudes
+│   └── web.php                          ─ Dashboard + perfil + RRHH + Portal + Solicitudes + Cementerio (28 rutas) + Asistencia (7 rutas)
 ├── storage/
 │   └── app/public/avatars/              ─ Fotos de perfil subidas
 ├── .env
@@ -241,7 +327,7 @@ orion-x/
   DB_CONNECTION=sqlite
   ```
   Sin host/port — SQLite usa archivo `database/database.sqlite`.
-- **Migraciones ejecutadas**: 15 (usuarios, caché, jobs, catálogos, foto_perfil, permisos, jornada, detalles, estados_vacaciones, vacaciones, nullable_fechas, vacacion_periodos, drop_periodo_numero, permisos_sistema, user_permiso_sistema)
+- **Migraciones ejecutadas**: 47 (17 base + 30 cementerio)
 
 ## Paleta de colores actual
 
@@ -370,6 +456,7 @@ php artisan test         # Pest tests
 - `$appends` incluye `name` y `foto_perfil_url` para que lleguen al frontend vía Inertia
 - Relaciones con catálogos: sexo, nacionalidad, profesión, prevision, afp, estado
 - Relación `permisosSistema()`: BelongsToMany con PermisoSistema via `user_permiso_sistema`
+- Relación `moduloPerfiles()`: HasMany con UserModuloPerfil (perfiles por módulo)
 
 ### Login con validación de estado
 - `LoginRequest.php::authenticate()` verifica que `$user->estado?->nombre === 'Activo'` después de autenticar
@@ -380,29 +467,41 @@ php artisan test         # Pest tests
 - Tabla `permisos_sistema` con columnas: id, nombre, slug, descripcion
 - Pivot `user_permiso_sistema` (user_id, permiso_id)
 - Modelo `PermisoSistema` con relación `users()` belongsToMany
-- Seeder: `PermisoSistemaSeeder` crea permisos `rrhh` y `solicitudes` (firstOrCreate)
+- Seeder: `PermisoSistemaSeeder` crea 15 permisos: `rrhh`, `solicitudes`, `asistencia`, `cementerio` + 11 `cementerio-*` (firstOrCreate)
 - Se comparten globalmente vía `HandleInertiaRequests.php`:
   ```php
   'permisos' => $request->user()?->permisosSistema?->pluck('slug') ?? [],
   ```
-- `PageProps` en `types/index.ts` incluye `permisos: string[]`
+- También se comparte `modulo_perfiles` (Record<string, string>) desde `HandleInertiaRequests`:
+  ```php
+  'modulo_perfiles' => $request->user()?->moduloPerfiles?->pluck('perfil_slug', 'modulo_slug') ?? [],
+  ```
+- `PageProps` en `types/index.ts` incluye `permisos: string[]` y `modulo_perfiles: Record<string, string>`
 - `AppLayout.tsx` muestra items condicionales según permisos:
   - `Mi Espacio` (siempre visible)
   - `Solicitudes` si `permisos.includes('solicitudes')`
   - `RRHH` si `permisos.includes('rrhh')`
+  - `Asistencia` si `permisos.includes('asistencia')` (submenús: Dashboard, Reportes → Por Funcionario / Por Unidad → Unidades/Diario/Mensual, Horarios)
+  - `Cementerio`: cada link del sidebar checa su sub-permiso específico (`cementerio-registro-fallecido`, etc.). Backward compat: si el usuario tiene `cementerio` pero ningún `cementerio-*`, se muestran todos los items
   - Sin headers de sección (solo links cliqueables)
-- `Rrhh/Edit.tsx` tab Sistema: switches toggle para asignar/remover permisos al usuario, con ruta `PATCH /rrhh/{user}/permisos-sistema`
+- `Rrhh/Edit.tsx` tab Sistema: dos sub-tabs — **Accesos** (toggles permiso por módulo, PATCH `/rrhh/{user}/permisos-sistema`) y **Acciones** (selects de perfil por submódulo, PATCH `/rrhh/{user}/modulo-perfiles`). Cementerio expandible con sub-toggles anidados independientes
+- Perfiles fijos: Superadmin (CRUD), Admin (CRU), Usuario (CR), Auditor (R) — sin tabla propia
+- Tabla `user_modulo_perfil` (user_id, modulo_slug, perfil_slug, unique compuesto) para persistencia
+- Modelo `UserModuloPerfil` + relación `moduloPerfiles()` en User
+- `RrhhUserController@updateModuloPerfiles`: recibe `asignaciones` (map slug → perfil), elimina y re-inserta
 
-### Confirmaciones con sweetalert2 (legacy) / ConfirmDialog + ToastProvider
-- sweetalert2 instalado pero **solo se usa en páginas legacy** (Auth, Profile, Create, Rrhh/Create)
+### Confirmaciones con sweetalert2 / ConfirmDialog + ToastProvider
+- sweetalert2 usado en páginas legacy (Auth, Profile, Create, Rrhh/Create) **y** en Cementerio (`EditarOtModal`, `OtDetalleModal`)
 - En `Rrhh/Edit.tsx` y `Solicitudes/Index.tsx` sweetalert2 fue **reemplazado completamente** por:
   - `ConfirmDialog`: componente sin portal (z-[200]) para evitar conflictos con overlays de Radix Dialog
   - `ToastProvider` + `ui/toast`: notificaciones de éxito no obstructivas
+- En `Cementerio` se usa SweetAlert2 directamente (no ConfirmDialog) con clase `swal-high-z` (z-index: 100000) y cierre del Dialog antes de mostrar para evitar conflictos con overlays de Radix UI
 - Acciones que usan ConfirmDialog: guardar perfil, crear/eliminar OTT, crear/eliminar/aceptar permiso, crear/eliminar/aceptar vacación, registrar histórico, aceptar/rechazar solicitudes
 
 ### Módulo RRHH
 - Ruta: `/rrhh` (name: `rrhh.index`), `/rrhh/create` (`rrhh.create`), `POST /rrhh` (`rrhh.store`)
-- Controlador: `RrhhUserController` con index, create, store, edit, update + métodos OTT/permiso/vacacion
+- Controlador: `RrhhUserController` con index, create, store, edit, update + métodos OTT/permiso/vacacion/updateModuloPerfiles
+- Rutas adicionales: `PATCH /rrhh/{user}/modulo-perfiles` (`rrhh.modulo-perfiles`)
 - Request: `StoreUserRequest` (crear) + `UpdateUserRequest` (editar) + `StorePermisoRequest` + `StoreVacacionRequest` + `StoreVacacionHistoricoRequest`
 - Frontend:
   - `Rrhh/Index.tsx`: tabla paginada con búsqueda + badge de estado por color
@@ -413,7 +512,7 @@ php artisan test         # Pest tests
     - Vacaciones: tabla periodos + tabla solicitudes, 4 estados, dialogs crear/aceptar/rechazar/anular
     - Registro histórico: modal independiente con distribución FIFO + vista previa
     - Mérito/Demérito: card placeholder vacío (próximamente)
-    - Sistema: lista de switches toggle para asignar permisos_sistema
+    - Sistema: dos sub-tabs — Accesos (toggles permiso por módulo, Cementerio expandible con chevron y sub-toggles anidados independientes) y Acciones (selects de perfil por submódulo: Superadmin/Admin/Usuario/Auditor + botón Guardar)
 - Contraseña: se genera automáticamente como el RUT sin dígito verificador
 - Catálogos: todos los catálogos existentes se pasan a la vista create/edit
 - Animaciones: `animate-fade-in-up` con delays para entrada escalonada
@@ -478,3 +577,45 @@ php artisan test         # Pest tests
 - Requiere permiso `solicitudes` para acceder (compartido vía `HandleInertiaRequests.php`)
 - Layout usa patrón `.layout = (page) => <AppLayout ...>` (mismo que RRHH Edit)
 - Columnas en tabla: Funcionario (en lugar de Empleado)
+
+### Módulo Cementerio (Backend + Frontend)
+- **Backend completo:** migraciones, modelos, controladores, requests, seeders para fallecidos, deudores, OT, ubicaciones
+- **Migraciones:** 27 tablas/columnas (sexos, estados_civiles, fallecidos, deudores, relaciones, financiamiento, servicios, sectores, tipos_ubicacion, estados_ubicacion, ubicaciones, fallecido_ubicacion, valor_servicio, valor_arriendo, formas_pago, ot, ot_servicios, dv deudores, registrador_id nullable, cuotas, metodo_pago_id, forma_pago nullable, pagos_mixtos, pago_mixto flag, monto_recibido, deudores_contacto)
+- **Modelos en `App\Models\Cementerio\`:** 17 modelos — Fallecido (+ubicacionActual, historialUbicaciones), FallecidoUbicacion, Ubicacion, TipoUbicacion, Sector, EstadoUbicacion, Ot (RouteKeyName=numero_ot, 9 relaciones: incluye estado via ot_estado_id), Deudor, DeudorContacto, Relacion, Financiamiento, Servicio, FormaPago, Sexo, EstadoCivil, Cuota, CuotaPagoMixto, OtEstado
+- **Controladores:** `FallecidoController` (CRUD + search + detalle JSON + buscarUbicacion + verificarRut), `DeudorController` (CRUD + search autocomplete), `OtController` (store + update + detalle JSON con estado + cuotas + pagar con verificarOtFinalizada + formasPago + imprimir + comprobante)
+- **Requests:** `StoreFallecidoRequest`, `StoreDeudorRequest`, `StoreOtRequest`
+- **Seeders:** 12 idempotentes (firstOrCreate) para todos los catálogos de Cementerio + OtEstadoSeeder
+- **Rutas:** 28 rutas bajo `Route::middleware(['auth', 'verified'])->prefix('cementerio')` (CRUD fallecidos/deudores/OT, search, detalle, cuotas, pagar, comprobante, consultar-data JSON, imprimir, verificar-rut)
+- **Catálogos desde BD:** sexos, estados civiles, relaciones, financiamiento, servicios, sectores, tipos_ubicacion, estados_ubicacion, formas_pago se pasan como props Inertia
+- **Frontend:** 10 páginas + 8 componentes + shared components
+- **Páginas con BD real:** RegistroFallecido (CRUD + EditarFallecidoModal compartido), HistorialDeudores (CRUD + modal edición), IngresarOt (wizard 3 pasos + BD), BuscarOt (todas las OTs reales + filtros client-side), BuscarPorFallecido (fetch real a `/cementerio/buscar-fallecido-ubicacion`), ConsultarUbicaciones (fetch real a `/cementerio/ubicaciones/consultar-data`), ImprimirOt (standalone legal), ComprobantePago (standalone legal)
+- **Páginas con datos reales adicionales:** Reportes/Cuotas por Vencer con query real (cálculo días restantes, filtro pendiente/parcial, paginación local). IngresarOt con autoComplete="off" en 12 inputs
+- **Páginas mock pendientes:** Documentos (ExpedienteModal)
+- **Componentes nuevos:** `OtDetalleModal` (fetch `/cementerio/ot/{numero}/detalle` al abrir, tabs Información/Cuotas, SweetAlert al finalizar OT), `EditarFallecidoModal`, `EditarOtModal` (edición OT con estado dinámico, confirmación SweetAlert2 al anular), `PagarCuotaModal` (pago simple/mixto), `ModalOT` (detalle OT)
+- **Sidebar:** 3 grupos colapsables bajo Cementerio: "Gestión Mortuoria" (Registro Fallecido, Historial Deudores), "Órdenes de Trabajo" (Ingresar OT, Buscar OT, Buscar por Fallecido), "Ubicaciones" (Consultar Ubicaciones). Además Documentos y Reportes directos. Cada link condicional por sub-permiso `cementerio-*`
+- **Permiso:** 8 slugs `cementerio` + 7 `cementerio-*` en `PermisoSistemaSeeder`. Sidebar con control condicional por ítem + backward compat (si tiene `cementerio` pero ningún `cementerio-*`, se muestran todos)
+- **Formato fechas:** DD-MM-YYYY sin timezone (parseo manual desde YYYY-MM-DD)
+- **Impresión:** página tamaño legal (oficio) con `@page { size: legal; margin: 0.75cm }`
+- **DataTable genérica:** `columns`, `data`, `pagination?`, `onSearch?`, `onRowClick?`, `keyExtractor`
+
+### Módulo Asistencia (100% mock, sin backend)
+- **Sin backend:** rutas Inertia (closures) en `routes/web.php` bajo `prefix('asistencia')` → `name('asistencia.')`, middleware auth + verified. No hay modelos, migraciones, seeders ni controladores
+- **7 rutas:** `/asistencia` (redirect → dashboard), `/dashboard`, `/reportes/por-funcionario`, `/reportes/por-unidad` (hub), `/reportes/por-unidad/diario`, `/reportes/por-unidad/mensual`, `/horarios`
+- **Datos mock:** `lib/asistenciaMockData.ts` (~1,690 líneas, 60+ exports): `indicadores`, `funcionarios`, `horariosLaborales`, `lugaresDesempeno` (6), `unidadesCasaCentral` (5), `funcionariosUnidad` (23), `datosDiarioPorUnidad`, `resumenMensualInformatica`, `detalleMensualInformatica`, `evolucionHorasInformatica`, etc.
+- **Tipos:** `types/asistencia.ts` con `IndicadorAsistencia`, `FuncionarioAsistencia`, `RegistroAsistencia`, `UnidadAsistencia`, `FuncionarioUnidad`, `RegistroDiarioUnidad`, `DatosUnidadDiario`, `DatosUnidadMensual`, `DetalleMensualFuncionario`, `DiaHorario`, `HorarioLaboral`, etc.
+- **Páginas (8):**
+  - `Dashboard/Index.tsx`: 10 tarjetas de indicadores con tendencia, gráficos (recharts), rankings, alertas, actividad reciente, filtros mock
+  - `Reportes/PorFuncionario.tsx`: buscador con autocompletado por RUT/nombre, ficha, detalle diario + mini cartola mensual
+  - `Reportes/PorUnidad.tsx` (hub): flujo "Buscar" obligatorio — select de lugar → select de unidad filtrado (`unidadesDelLugar` via useMemo) → botón Buscar (`setBuscar(true)`). Al cambiar lugar se preselecciona la primera unidad y se resetea la búsqueda; al cambiar unidad se resetea `buscar=false`. Avisos: "Seleccione un lugar y unidad para comenzar" / "Sin unidades en este lugar" / "Presione Buscar para cargar los datos"
+  - `Reportes/PorUnidad/Diario.tsx`: flujo "Buscar" propio (mismo patrón), estado inicial según `?unidad=` válido en URL, tarjetas resumen + detalle diario, `VerAsistenciaModal`
+  - `Reportes/PorUnidad/Mensual.tsx`: lee `?unidad=` desde la URL (sin flujo Buscar), tarjetas resumen, detalle mensual por funcionario, gráficos de evolución, distribución por estado
+  - `Reportes/PorUnidad/IntegrantesModal.tsx`: lista de integrantes por fila con accesos "Ver Diario"/"Ver Mensual" que navegan con `?unidad={id}` (no hay estado compartido entre páginas)
+  - `Reportes/PorUnidad/VerAsistenciaModal.tsx`: detalle de asistencia del funcionario (marcaciones, horario, atrasos, horas extra)
+  - `Horarios/Index.tsx`: buscador autocompletado de funcionario, ficha, tabs "Editar Horario"/"Horarios Disponibles", formulario con tabla semanal y switch Laborable inline (`role="switch"`), tabla de horarios con Visualizar/Editar/Duplicar + Nuevo Horario, modal detalle (Dialog). **Maqueta estática** (Guardar/Duplicar decorativos, sin persistencia)
+- **Decisiones de diseño:**
+  - Flujo "Buscar" obligatorio en hub Por Unidad y Diario (no hay datos hasta presionar Buscar)
+  - Navegación Diario/Mensual vía `IntegrantesModal` con `?unidad=` en la URL (sin estado global compartido)
+  - **Modelo sin horario predeterminado:** los funcionarios no tienen horario asignado; se eliminaron el panel "Horario Actualmente Asignado", el botón "Asignar" y el campo `asignado` del tipo `HorarioLaboral`
+  - `layout = (page) => <AppLayout title=... children={page} />` — patrón con prop `children` (acepta lint `react/no-children-prop`, convención del proyecto)
+  - Switch Laborable inline con `role="switch"` (patrón Rrhh/Edit.tsx): OFF deshabilita inputs de hora + badge "Fin de Semana"/"No Laborable"
+  - Ruta `reportes/reporte-avanzado` **eliminada** (placeholder). El archivo `ReporteAvanzado.tsx` fue borrado y el link del sidebar removido; `BarChart3` se conserva por el link colapsado "Reportes"
