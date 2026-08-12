@@ -35,6 +35,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'permisos' => $request->user()?->permisosSistema?->pluck('slug') ?? [],
+            'modulo_perfiles' => $request->user()?->moduloPerfiles?->pluck('perfil_slug', 'modulo_slug') ?? [],
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),

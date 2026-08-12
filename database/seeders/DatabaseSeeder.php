@@ -24,6 +24,16 @@ class DatabaseSeeder extends Seeder
             TipoPermisoSeeder::class,
             EstadoPermisoSeeder::class,
             EstadoVacacionSeeder::class,
+            CementerioSexosSeeder::class,
+            CementerioEstadosCivilesSeeder::class,
+            CementerioSectoresSeeder::class,
+            CementerioTiposUbicacionSeeder::class,
+            CementerioEstadosUbicacionSeeder::class,
+            CementerioFormasPagoSeeder::class,
+            CementerioRelacionesSeeder::class,
+            CementerioFinanciamientoSeeder::class,
+            CementerioServiciosSeeder::class,
+            OtEstadoSeeder::class,
         ]);
     }
 }

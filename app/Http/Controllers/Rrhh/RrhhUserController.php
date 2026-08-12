@@ -663,4 +663,34 @@ class RrhhUserController extends Controller
         return redirect()->route('rrhh.edit', $user->id)
             ->with('success', 'Permisos actualizados correctamente.');
     }
+
+    public function updateModuloPerfiles(int $userId, Request $request): RedirectResponse
+    {
+        $user = User::findOrFail($userId);
+
+        $validated = $request->validate([
+            'asignaciones' => ['nullable', 'array'],
+            'asignaciones.*' => ['string', 'in:superadmin,admin,usuario,auditor'],
+        ]);
+
+        $user->moduloPerfiles()->delete();
+
+        $rows = [];
+        foreach (($validated['asignaciones'] ?? []) as $moduloSlug => $perfilSlug) {
+            $rows[] = [
+                'user_id' => $user->id,
+                'modulo_slug' => $moduloSlug,
+                'perfil_slug' => $perfilSlug,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        if (!empty($rows)) {
+            \App\Models\UserModuloPerfil::insert($rows);
+        }
+
+        return redirect()->route('rrhh.edit', $user->id)
+            ->with('success', 'Acciones actualizadas correctamente.');
+    }
 }

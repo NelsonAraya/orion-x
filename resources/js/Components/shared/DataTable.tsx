@@ -35,6 +35,8 @@ interface DataTableProps<T> {
   searchValue?: string
   searchPlaceholder?: string
   keyExtractor: (item: T) => string | number
+  onRowClick?: (item: T) => void
+  onPageChange?: (page: number) => void
 }
 
 export function DataTable<T>({
@@ -45,6 +47,8 @@ export function DataTable<T>({
   searchValue,
   searchPlaceholder = 'Buscar...',
   keyExtractor,
+  onRowClick,
+  onPageChange,
 }: DataTableProps<T>) {
   return (
     <div>
@@ -80,7 +84,11 @@ export function DataTable<T>({
               </TableRow>
             ) : (
               data.map((item) => (
-                <TableRow key={keyExtractor(item)}>
+                <TableRow
+                  key={keyExtractor(item)}
+                  onClick={() => onRowClick?.(item)}
+                  className={onRowClick ? 'cursor-pointer' : undefined}
+                >
                   {columns.map((col) => (
                     <TableCell key={col.key}>
                       {col.render
@@ -104,6 +112,7 @@ export function DataTable<T>({
               variant="outline"
               size="sm"
               disabled={pagination.current_page === 1}
+              onClick={() => onPageChange?.(pagination.current_page - 1)}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -112,6 +121,7 @@ export function DataTable<T>({
                 key={page}
                 variant={page === pagination.current_page ? 'default' : 'outline'}
                 size="sm"
+                onClick={() => onPageChange?.(page)}
               >
                 {page}
               </Button>
@@ -120,6 +130,7 @@ export function DataTable<T>({
               variant="outline"
               size="sm"
               disabled={pagination.current_page === pagination.last_page}
+              onClick={() => onPageChange?.(pagination.current_page + 1)}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>

@@ -115,4 +115,30 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(PermisoSistema::class, 'user_permiso_sistema', 'user_id', 'permiso_id');
     }
+
+    public function moduloPerfiles()
+    {
+        return $this->hasMany(\App\Models\UserModuloPerfil::class, 'user_id');
+    }
+
+    public function perfilPara(string $moduloSlug): string
+    {
+        return $this->moduloPerfiles
+            ->firstWhere('modulo_slug', $moduloSlug)
+            ?->perfil_slug ?? 'superadmin';
+    }
+
+    public function puede(string $moduloSlug, string $accion): bool
+    {
+        $reglas = [
+            'superadmin' => ['create', 'read', 'update', 'delete'],
+            'admin'      => ['create', 'read', 'update'],
+            'usuario'    => ['create', 'read'],
+            'auditor'    => ['read'],
+        ];
+
+        $perfil = $this->perfilPara($moduloSlug);
+
+        return in_array($accion, $reglas[$perfil] ?? ['read']);
+    }
 }
